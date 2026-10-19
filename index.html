@@ -1,0 +1,1063 @@
+<title>Compiladores · Sesión 1</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: cabecera de curso + barra de pestañas fija; cada pestaña es una columna de lectura (~70ch) con paneles de práctica más anchos. Tema: el compilador como tubería, tokens en tipografía monoespaciada. */
+:root{
+  --bg:#f4f5fa; --surface:#ffffff; --ink:#151a30; --muted:#585f7a; --line:#dcdfeb;
+  --accent:#3a3fd6; --accent-ink:#ffffff; --soft:#eceefc; --token:#b45f00; --token-soft:#fff2e0;
+  --ok:#1d7f47; --ok-soft:#e3f5ea; --bad:#b83434; --bad-soft:#fbe7e7; --code:#f0f1f8;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1120; --surface:#161a2d; --ink:#e6e8f5; --muted:#9ba1bd; --line:#2a2f49;
+  --accent:#8e92ff; --accent-ink:#0e1120; --soft:#1f2342; --token:#f2a745; --token-soft:#33260f;
+  --ok:#55c98a; --ok-soft:#14301f; --bad:#ff8181; --bad-soft:#3a1a1d; --code:#1b2036; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1120; --surface:#161a2d; --ink:#e6e8f5; --muted:#9ba1bd; --line:#2a2f49;
+  --accent:#8e92ff; --accent-ink:#0e1120; --soft:#1f2342; --token:#f2a745; --token-soft:#33260f;
+  --ok:#55c98a; --ok-soft:#14301f; --bad:#ff8181; --bad-soft:#3a1a1d; --code:#1b2036; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 var(--f-body)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--surface)}
+.wrap{max-width:1040px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);line-height:1.15;text-wrap:balance;margin:0}
+h2{font-size:1.75rem;font-weight:700}
+h3{font-size:1.2rem;font-weight:700}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.9em}
+code{background:var(--code);padding:.08em .35em;border-radius:5px}
+a{color:var(--accent)}
+.muted{color:var(--muted)}
+.eyebrow{font:600 .75rem/1 var(--f-body);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+
+/* Cabecera */
+header.top{background:var(--surface);border-bottom:1px solid var(--line)}
+header.top .wrap{padding-block:28px 22px;display:grid;gap:14px}
+.course{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline}
+.course h1{font-size:clamp(1.9rem,4.6vw,2.9rem);font-weight:700;letter-spacing:-.01em}
+.course h1 span{color:var(--accent)}
+.lead{max-width:68ch;color:var(--muted)}
+.pipe{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font:500 .8rem var(--f-mono)}
+.pipe span{padding:4px 9px;border:1px solid var(--line);border-radius:999px;background:var(--bg)}
+.pipe span.a{border-color:var(--accent);color:var(--accent)}
+.pipe span.s{border-color:var(--token);color:var(--token)}
+.pipe i{font-style:normal;color:var(--muted)}
+
+/* Pestañas */
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+nav.tabs .wrap{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.tabs button{flex:0 0 auto;font:600 .95rem var(--f-body);color:var(--muted);background:none;border:0;border-bottom:3px solid transparent;padding:14px 14px 11px;cursor:pointer}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+nav.tabs button:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+main .wrap{padding-block:32px 64px}
+section.panel{display:grid;gap:36px}
+.prose{max-width:70ch;display:grid;gap:14px}
+.block{display:grid;gap:16px}
+
+/* Ruta */
+.agenda{display:grid;gap:0;border-left:2px solid var(--line);margin-left:6px}
+.slot{display:grid;grid-template-columns:96px 1fr;gap:16px;padding:14px 0 14px 20px;position:relative}
+.slot::before{content:"";position:absolute;left:-7px;top:22px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:2px solid var(--accent)}
+.slot.pause::before{border-color:var(--muted)}
+.slot .t{font:600 .9rem var(--f-mono);color:var(--accent);font-variant-numeric:tabular-nums}
+.slot.pause .t{color:var(--muted)}
+.slot h3{font-size:1.05rem}
+.slot p{color:var(--muted);font-size:.95rem;margin-top:3px}
+.slot .go{font-size:.85rem;margin-top:6px;display:inline-block}
+.bar{display:flex;height:12px;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+.bar div{height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.85rem;color:var(--muted)}
+.legend b{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.outcomes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.outcome{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:6px}
+.outcome .eyebrow{color:var(--accent)}
+
+/* Teoría */
+.toc{display:flex;flex-wrap:wrap;gap:8px}
+.toc a{font-size:.88rem;text-decoration:none;padding:6px 11px;border:1px solid var(--line);border-radius:999px;color:var(--ink);background:var(--surface)}
+.compare{width:100%;border-collapse:collapse;font-size:.94rem;min-width:560px}
+.compare th,.compare td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.compare th{font-size:.8rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.phases{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.phase{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:8px;align-content:start}
+.phase .tag{font:600 .72rem var(--f-mono);letter-spacing:.06em;text-transform:uppercase}
+.phase.an .tag{color:var(--accent)}
+.phase.sy .tag{color:var(--token)}
+.io{font:400 .82rem var(--f-mono);color:var(--muted);display:grid;gap:2px}
+.io b{color:var(--ink);font-weight:600}
+.callout{border-left:4px solid var(--accent);background:var(--soft);padding:14px 16px;border-radius:0 var(--r) var(--r) 0;max-width:70ch}
+.callout.warn{border-color:var(--token);background:var(--token-soft)}
+pre.code{font:400 .88rem/1.55 var(--f-mono);background:var(--code);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin:0;overflow-x:auto;white-space:pre}
+.trace{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.trace > div{display:grid;gap:6px;min-width:0}
+.diagram{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;overflow-x:auto}
+.diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}
+.gloss{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 24px}
+.gloss div{border-top:1px solid var(--line);padding-top:8px}
+.gloss dt{font-weight:600}
+.gloss dd{margin:2px 0 0;color:var(--muted);font-size:.94rem}
+
+/* Componentes interactivos */
+.lab{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;display:grid;gap:16px}
+.lab-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between}
+.btn{font:600 .92rem var(--f-body);border-radius:8px;padding:9px 16px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+input[type=text],input[type=email],select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%}
+textarea{min-height:140px;font:400 .85rem var(--f-mono)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:500 .82rem var(--f-mono);padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.steps{display:flex;flex-wrap:wrap;gap:6px}
+.steps button{font:600 .8rem var(--f-body);padding:7px 11px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--muted);cursor:pointer}
+.steps button.done{color:var(--ink)}
+.steps button.cur{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.steps button.err{background:var(--bad);border-color:var(--bad);color:#fff}
+.stage{display:grid;gap:12px;min-width:0}
+.stage h4{margin:0;font:700 1rem var(--f-display)}
+.toks{display:flex;flex-wrap:wrap;gap:8px}
+.tok{display:grid;border:1px solid var(--line);border-radius:8px;overflow:hidden;font-family:var(--f-mono);font-size:.82rem;min-width:64px;text-align:center}
+.tok .lx{padding:6px 8px;font-weight:600}
+.tok .cl{padding:3px 8px;font-size:.7rem;border-top:1px solid var(--line);color:var(--muted);background:var(--bg)}
+.tok.id .lx{color:var(--accent)}
+.tok.num .lx{color:var(--token)}
+.symt{border-collapse:collapse;font:400 .85rem var(--f-mono);min-width:300px;width:100%}
+.symt th,.symt td{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left}
+.symt th{font-family:var(--f-body);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.errbox{border:1px solid var(--bad);background:var(--bad-soft);color:var(--ink);border-radius:var(--r);padding:12px 14px}
+.errbox b{color:var(--bad)}
+.okbox{border:1px solid var(--ok);background:var(--ok-soft);border-radius:var(--r);padding:12px 14px}
+.notes{margin:0;padding-left:18px;color:var(--muted);font-size:.92rem}
+svg .n-rect{fill:var(--bg);stroke:var(--line)}
+svg .n-rect.op{fill:var(--soft);stroke:var(--accent)}
+svg .n-rect.lf{fill:var(--surface);stroke:var(--line)}
+svg .n-rect.cv{fill:var(--token-soft);stroke:var(--token)}
+svg .n-txt{fill:var(--ink);font:600 13px var(--f-mono)}
+svg .n-sub{fill:var(--muted);font:400 10.5px var(--f-mono)}
+svg .edge{stroke:var(--muted);stroke-width:1.3;fill:none}
+svg .lbl{fill:var(--ink);font:600 12.5px var(--f-body)}
+svg .lbl2{fill:var(--muted);font:400 11px var(--f-body)}
+svg .box{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+svg .box.a{stroke:var(--accent);fill:var(--soft)}
+svg .box.s{stroke:var(--token);fill:var(--token-soft)}
+svg .box.side{fill:var(--bg);stroke:var(--muted);stroke-dasharray:4 3}
+svg .arr{stroke:var(--muted);stroke-width:1.3;fill:none}
+svg .link{stroke:var(--line);stroke-width:1;fill:none}
+svg .ah{fill:var(--muted)}
+
+.qlist{display:grid;gap:14px}
+.q{border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;background:var(--bg);display:grid;gap:10px}
+.q .stem{font-weight:500}
+.opts{display:grid;gap:6px}
+.opt{display:flex;gap:10px;align-items:flex-start;text-align:left;font:inherit;font-size:.95rem;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 12px;cursor:pointer;width:100%}
+.opt:hover{border-color:var(--accent)}
+.opt .k{font:600 .8rem var(--f-mono);color:var(--muted);min-width:1.2em}
+.opt.sel{border-color:var(--accent);background:var(--soft)}
+.opt.right{border-color:var(--ok);background:var(--ok-soft)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.fb{font-size:.9rem;color:var(--muted)}
+.fb.good{color:var(--ok)} .fb.badc{color:var(--bad)}
+.err-items{display:grid;gap:10px}
+.err-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;background:var(--bg)}
+.err-item code{background:none;padding:0;font-size:.92rem;overflow-wrap:anywhere}
+.err-item .pick{display:flex;gap:4px;flex-wrap:wrap}
+.err-item .pick button{font:600 .76rem var(--f-body);padding:6px 9px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.err-item .pick button.right{background:var(--ok);border-color:var(--ok);color:#fff}
+.err-item .pick button.wrong{background:var(--bad);border-color:var(--bad);color:#fff}
+.err-item .why{grid-column:1/-1;font-size:.88rem;color:var(--muted)}
+@media (max-width:560px){.err-item{grid-template-columns:1fr}.slot{grid-template-columns:1fr;gap:4px}}
+.order-out{min-height:48px;border:1px dashed var(--line);border-radius:var(--r);padding:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.order-out .chip{cursor:default;border-color:var(--accent);color:var(--accent)}
+.match{display:grid;gap:10px}
+.match-row{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:10px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:10px}
+.match-row.ok select{border-color:var(--ok)} .match-row.no select{border-color:var(--bad)}
+@media (max-width:620px){.match-row{grid-template-columns:1fr}}
+.score{font:700 1.1rem var(--f-display)}
+
+/* Evaluación */
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;align-items:start}
+.form{display:grid;gap:12px}
+.form label{display:grid;gap:4px;font-size:.9rem;font-weight:500}
+.check{display:flex !important;grid-template-columns:none;gap:10px;align-items:flex-start;font-weight:400 !important}
+.check input{margin-top:5px}
+.rules{margin:0;padding-left:20px;display:grid;gap:4px;color:var(--muted);font-size:.93rem}
+.rubric{width:100%;border-collapse:collapse;font-size:.88rem;min-width:720px}
+.rubric th,.rubric td{border:1px solid var(--line);padding:9px 10px;vertical-align:top;text-align:left}
+.rubric th{background:var(--bg);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+.rubric td:first-child{font-weight:600;width:20%}
+.tasks{display:grid;gap:12px;counter-reset:t}
+.task{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:8px}
+.task ul{margin:0;padding-left:20px;color:var(--ink)}
+.task .meta{font-size:.85rem;color:var(--muted)}
+details.teacher{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+details.teacher summary{cursor:pointer;font-weight:600}
+details.teacher[open]{display:grid;gap:12px}
+
+/* Examen a pantalla completa */
+#exam{position:fixed;inset:0;z-index:100;background:var(--bg);overflow-y:auto;padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+#exam.locked{user-select:none;-webkit-user-select:none}
+.exam-in{max-width:760px;margin:0 auto;display:grid;gap:18px}
+.exam-bar{display:flex;flex-wrap:wrap;gap:10px 18px;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:12px}
+.clock{font:700 1.4rem var(--f-mono);font-variant-numeric:tabular-nums}
+.clock.low{color:var(--bad)}
+.pill{font:600 .78rem var(--f-body);padding:4px 10px;border-radius:999px;border:1px solid var(--line)}
+.pill.warn{border-color:var(--bad);color:var(--bad)}
+.progress{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.progress div{height:100%;background:var(--accent);transition:width .3s}
+.qcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px;display:grid;gap:16px}
+.qcard .stem{font-size:1.1rem;font-weight:500}
+.result{display:grid;gap:14px}
+.grade{font:700 3.4rem/1 var(--f-display);font-variant-numeric:tabular-nums}
+.msg{white-space:pre-wrap;font:400 .82rem/1.5 var(--f-mono);background:var(--code);border:1px solid var(--line);border-radius:var(--r);padding:12px;max-height:280px;overflow:auto}
+.ctx{display:grid;gap:4px;background:var(--soft);border:1px solid var(--accent);border-radius:var(--r);padding:12px 14px}
+code.big{font-size:1.1rem;background:none;padding:0;overflow-wrap:anywhere}
+.mono-wrap{font-family:var(--f-mono);font-size:.88rem;overflow-wrap:anywhere;min-width:0}
+.fbq.good{border-left:4px solid var(--ok)} .fbq.bad{border-left:4px solid var(--bad)}
+.tagr{font:600 .75rem var(--f-body);padding:2px 8px;border-radius:999px;color:#fff}
+.tagr.good{background:var(--ok)} .tagr.bad{background:var(--bad)}
+.gstart .chip{cursor:default}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="eyebrow">Ingeniería de Sistemas · Compiladores · Unidad 1</div>
+    <div class="course"><h1>Sesión 1 · <span>¿Qué es un compilador?</span></h1></div>
+    <p class="lead">Definición, diferencia con traductores e intérpretes, las fases de análisis y síntesis, la tabla de símbolos y el manejo de errores. Bloque de 3 horas.</p>
+    <div class="pipe" aria-label="Fases del compilador">
+      <span>fuente</span><i>→</i><span class="a">léxico</span><i>→</i><span class="a">sintáctico</span><i>→</i><span class="a">semántico</span><i>→</i><span class="s">intermedio</span><i>→</i><span class="s">optimización</span><i>→</i><span class="s">generación</span><i>→</i><span>objeto</span>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="Secciones de la clase">
+  <div class="wrap" role="tablist">
+    <button role="tab" id="t-ruta" aria-controls="ruta" aria-selected="true">Ruta de clase</button>
+    <button role="tab" id="t-teoria" aria-controls="teoria" aria-selected="false">Teoría</button>
+    <button role="tab" id="t-practica" aria-controls="practica" aria-selected="false">Práctica</button>
+    <button role="tab" id="t-actividades" aria-controls="actividades" aria-selected="false">Actividades</button>
+    <button role="tab" id="t-evaluacion" aria-controls="evaluacion" aria-selected="false">Evaluación</button>
+  </div>
+</nav>
+
+<main><div class="wrap">
+
+<!-- ================= RUTA ================= -->
+<section class="panel" id="ruta" role="tabpanel" aria-labelledby="t-ruta">
+  <div class="block">
+    <h2>Ruta de 180 minutos</h2>
+    <div class="bar" aria-hidden="true">
+      <div style="width:8.33%;background:var(--token)"></div>
+      <div style="width:27.8%;background:var(--accent)"></div>
+      <div style="width:5.56%;background:var(--line)"></div>
+      <div style="width:16.7%;background:var(--accent);opacity:.7"></div>
+      <div style="width:11.1%;background:var(--ok)"></div>
+      <div style="width:19.4%;background:var(--token);opacity:.7"></div>
+      <div style="width:8.33%;background:var(--bad)"></div>
+      <div style="width:2.78%;background:var(--muted)"></div>
+    </div>
+    <div class="legend"><span><b style="background:var(--token)"></b>Activación 15</span><span><b style="background:var(--accent)"></b>Teoría 80</span><span><b style="background:var(--line)"></b>Pausa 10</span><span><b style="background:var(--ok)"></b>Práctica 20</span><span><b style="background:var(--token);opacity:.7"></b>Actividades en clase 35</span><span><b style="background:var(--bad)"></b>Evaluación 15</span><span><b style="background:var(--muted)"></b>Cierre 5</span></div>
+  </div>
+
+  <div class="agenda">
+    <div class="slot"><div class="t">0:00–0:15</div><div><h3>Activación: ¿qué pasa cuando presionas «Compilar»?</h3><p>Lluvia de ideas con un error real de compilación proyectado. Prueba inicial del módulo (5 preguntas aleatorias, diagnóstica, sin nota).</p><a class="go" href="#practica" data-go="practica" data-target="diag">Ir a la prueba inicial</a></div></div>
+    <div class="slot"><div class="t">0:15–1:05</div><div><h3>Teoría I: definición y fases</h3><p>Compilador, traductor e intérprete. Lenguajes de alto y bajo nivel. Análisis y síntesis. Las seis fases y qué entra y sale de cada una.</p><a class="go" href="#teoria" data-go="teoria" data-target="def">Abrir teoría</a></div></div>
+    <div class="slot pause"><div class="t">1:05–1:15</div><div><h3>Pausa</h3><p>10 minutos.</p></div></div>
+    <div class="slot"><div class="t">1:15–1:45</div><div><h3>Teoría II y demostración con el simulador</h3><p>Tabla de símbolos, manejador de errores y trazado de <code>posicion = inicial + velocidad * 60</code> en el simulador de fases.</p><a class="go" href="#teoria" data-go="teoria" data-target="ejemplo">Ver ejemplos</a></div></div>
+    <div class="slot"><div class="t">1:45–2:05</div><div><h3>Práctica calificada</h3><p>10 preguntas aleatorias en 15 minutos, con clave del día. Nota de 1,0 a 5,0.</p><a class="go" href="#practica" data-go="practica">Ir a la práctica</a></div></div>
+    <div class="slot"><div class="t">2:05–2:40</div><div><h3>Actividades en clase</h3><p>El compilador humano (15 min, por grupos) y Traza tu instrucción (20 min, calificada, una instrucción distinta para cada estudiante).</p><a class="go" href="#actividades" data-go="actividades">Ir a las actividades</a></div></div>
+    <div class="slot"><div class="t">2:40–2:55</div><div><h3>Evaluación individual</h3><p>12 preguntas al azar de un banco de 24, 15 minutos, con clave del día. Nota de 1,0 a 5,0 enviada por WhatsApp.</p><a class="go" href="#evaluacion" data-go="evaluacion">Ir a la evaluación</a></div></div>
+    <div class="slot"><div class="t">2:55–3:00</div><div><h3>Cierre 3-2-1 y actividades en casa</h3><p>3 fases que recuerdas, 2 diferencias entre compilador e intérprete, 1 duda. Se presentan el reto en línea y el taller escrito.</p><a class="go" href="#actividades" data-go="actividades">Ver actividades en casa</a></div></div>
+  </div>
+
+  <div class="block">
+    <h2>Al terminar la sesión, el estudiante podrá</h2>
+    <div class="outcomes">
+      <div class="outcome"><span class="eyebrow">Comprender</span><p>Explicar qué es un compilador y en qué se diferencia de un traductor y de un intérprete.</p></div>
+      <div class="outcome"><span class="eyebrow">Aplicar</span><p>Recorrer las seis fases para una instrucción de asignación: tokens, árbol, código intermedio, optimización y ensamblador.</p></div>
+      <div class="outcome"><span class="eyebrow">Analizar</span><p>Identificar qué fase detecta un error dado y justificar por qué.</p></div>
+    </div>
+  </div>
+
+  <div class="callout"><b>Material base:</b> Módulo «Compiladores», Corporación Universitaria Remington (Zapata, 2015), capítulo 3: definición de un compilador y conceptos generales, págs. 9–17.</div>
+</section>
+
+<!-- ================= TEORÍA ================= -->
+<section class="panel" id="teoria" role="tabpanel" aria-labelledby="t-teoria" hidden>
+  <nav class="toc" aria-label="Temas">
+    <a href="#def" data-target="def">1. Definición</a>
+    <a href="#niveles" data-target="niveles">2. Alto y bajo nivel</a>
+    <a href="#fases" data-target="fases">3. Las fases</a>
+    <a href="#transv" data-target="transv">4. Tabla de símbolos y errores</a>
+    <a href="#ejemplo" data-target="ejemplo">5. Ejemplos trazados</a>
+    <a href="#glosario" data-target="glosario">6. Glosario</a>
+  </nav>
+
+  <article class="block" id="def">
+    <span class="eyebrow">Tema 1</span>
+    <h2>¿Qué es un compilador?</h2>
+    <div class="prose">
+      <p>Un <b>compilador</b> es un programa que lee un programa escrito en un lenguaje (el <i>lenguaje fuente</i>, normalmente de alto nivel) y lo traduce a un programa equivalente en otro lenguaje (el <i>lenguaje destino</i>, normalmente código de máquina o ensamblador). Al proceso completo se le llama <b>compilación</b>.</p>
+      <p>Un compilador nace junto con su lenguaje de programación. Su trabajo no es solo traducir: primero revisa que el código esté bien escrito y bien usado, informa los errores al programador y, si todo está correcto, produce un código destino lo más eficiente posible.</p>
+      <p>Por eso el módulo insiste en que un compilador no es un simple traductor. Un traductor convierte un texto escrito con unas normas en otro texto con normas distintas. El compilador, además, hace revisión <b>léxica</b>, <b>sintáctica</b> y <b>semántica</b> y entrega una escritura <b>optimizada</b> que la computadora puede ejecutar.</p>
+    </div>
+    <div class="scroll">
+      <table class="compare">
+        <thead><tr><th></th><th>Traductor</th><th>Compilador</th><th>Intérprete</th></tr></thead>
+        <tbody>
+          <tr><td><b>Qué hace</b></td><td>Convierte un lenguaje en otro</td><td>Analiza todo el programa y genera un programa objeto</td><td>Analiza y ejecuta las instrucciones una a una</td></tr>
+          <tr><td><b>Revisa errores</b></td><td>No es su propósito</td><td>Léxicos, sintácticos y semánticos, antes de ejecutar</td><td>Al llegar a cada instrucción</td></tr>
+          <tr><td><b>Salida</b></td><td>Texto en otro lenguaje</td><td>Código máquina o ensamblador (archivo ejecutable)</td><td>Los resultados de ejecutar el programa</td></tr>
+          <tr><td><b>Optimiza</b></td><td>No</td><td>Sí, en la fase de síntesis</td><td>Poco o nada</td></tr>
+          <tr><td><b>Ejemplos</b></td><td>Convertidor de unidades de texto, transpilador simple</td><td><code>gcc</code> para C, <code>rustc</code> para Rust</td><td>Intérprete de Python, la consola de JavaScript</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">Para discutir: Java compila a <i>bytecode</i> y luego la JVM lo interpreta o lo compila en tiempo de ejecución (JIT). ¿Java es compilado o interpretado? La respuesta honesta es «ambas cosas, en dos etapas».</div>
+  </article>
+
+  <article class="block" id="niveles">
+    <span class="eyebrow">Tema 1</span>
+    <h2>Lenguajes de alto y bajo nivel</h2>
+    <div class="prose">
+      <p>Un lenguaje de <b>alto nivel</b> (C, Java, Python, Pascal) se acerca al modo de pensar de las personas: usa palabras como <code>while</code> o <code>if</code>, expresiones matemáticas y nombres de variables. Un lenguaje de <b>bajo nivel</b> (ensamblador, código de máquina) usa instrucciones que se comunican directamente con los <b>registros</b> y la memoria de la máquina.</p>
+      <p>El compilador es el puente entre los dos. Una sola línea de alto nivel suele convertirse en varias instrucciones de bajo nivel:</p>
+    </div>
+    <div class="trace">
+      <div><span class="eyebrow">Alto nivel (C)</span><pre class="code">c = a * (b - d) / f;</pre></div>
+      <div><span class="eyebrow">Bajo nivel (ensamblador simplificado)</span><pre class="code">MOV  b, R1     ; R1 ← b
+SUB  d, R1     ; R1 ← b - d
+MOV  a, R2     ; R2 ← a
+MUL  R1, R2    ; R2 ← a * (b - d)
+DIV  f, R2     ; R2 ← R2 / f
+MOV  R2, c     ; c ← R2</pre></div>
+    </div>
+    <div class="callout warn"><b>Ojo con una confusión frecuente:</b> el lenguaje natural (español, inglés) es ambiguo y depende del contexto. Los lenguajes de programación se definen con reglas formales precisamente para que un programa (el compilador) pueda reconocerlos sin ambigüedad.</div>
+  </article>
+
+  <article class="block" id="fases">
+    <span class="eyebrow">Tema 2</span>
+    <h2>Análisis y síntesis: las seis fases</h2>
+    <div class="prose">
+      <p>Por razones de diseño, el compilador se divide en fases. Se agrupan en dos procesos:</p>
+      <p><b>Análisis</b> (parte frontal): comprueba que el programa fuente esté correctamente escrito y construye una representación intermedia de él. <b>Síntesis</b> (parte final): a partir de esa representación, construye el programa destino.</p>
+    </div>
+    <div class="diagram" aria-label="Diagrama de las fases del compilador con la tabla de símbolos y el manejador de errores">
+      <svg viewBox="0 0 640 470" width="640" role="img">
+        <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+        <rect class="box side" x="10" y="160" width="130" height="150" rx="10"/>
+        <text class="lbl" x="75" y="225" text-anchor="middle">Administrador</text>
+        <text class="lbl" x="75" y="243" text-anchor="middle">de la tabla</text>
+        <text class="lbl" x="75" y="261" text-anchor="middle">de símbolos</text>
+        <rect class="box side" x="500" y="160" width="130" height="150" rx="10"/>
+        <text class="lbl" x="565" y="234" text-anchor="middle">Manejador</text>
+        <text class="lbl" x="565" y="252" text-anchor="middle">de errores</text>
+        <g id="phaseBoxes"></g>
+      </svg>
+    </div>
+    <div class="phases">
+      <div class="phase an"><span class="tag">Análisis · fase 1</span><h3>Análisis léxico</h3><p>Lee el programa fuente carácter a carácter, elimina espacios y comentarios y lo fracciona en <b>tokens</b>: identificadores, números, operadores, signos. Registra los identificadores en la tabla de símbolos.</p><div class="io"><span><b>entra:</b> cadena de caracteres</span><span><b>sale:</b> secuencia de tokens</span></div></div>
+      <div class="phase an"><span class="tag">Análisis · fase 2</span><h3>Análisis sintáctico</h3><p>Verifica que los tokens respeten la estructura del lenguaje, definida por reglas llamadas <b>gramáticas</b>. Construye el <b>árbol sintáctico</b>. Es una de las fases más importantes.</p><div class="io"><span><b>entra:</b> tokens</span><span><b>sale:</b> árbol sintáctico</span></div></div>
+      <div class="phase an"><span class="tag">Análisis · fase 3</span><h3>Análisis semántico</h3><p>Comprueba que cada componente se use de forma válida en su contexto: tipos compatibles, variables declaradas, conversiones necesarias (por ejemplo, de entero a real).</p><div class="io"><span><b>entra:</b> árbol sintáctico</span><span><b>sale:</b> árbol anotado con tipos</span></div></div>
+      <div class="phase sy"><span class="tag">Síntesis · fase 4</span><h3>Generación de código intermedio</h3><p>Traduce el árbol a un código sencillo, independiente de la máquina, con <b>variables temporales</b>. El formato más usado es el código de tres direcciones: <code>t1 = id2 + id3</code>.</p><div class="io"><span><b>entra:</b> árbol anotado</span><span><b>sale:</b> código de tres direcciones</span></div></div>
+      <div class="phase sy"><span class="tag">Síntesis · fase 5</span><h3>Optimización de código</h3><p>Mejora el código intermedio para que se ejecute más rápido o use menos recursos: elimina temporales innecesarias, calcula constantes en tiempo de compilación. Optimizar sobre el código intermedio es mucho más fácil que sobre el fuente.</p><div class="io"><span><b>entra:</b> código intermedio</span><span><b>sale:</b> código intermedio mejorado</span></div></div>
+      <div class="phase sy"><span class="tag">Síntesis · fase 6</span><h3>Generación de código</h3><p>Produce el código de máquina o ensamblador: decide qué registros usar y qué instrucciones (<code>MOV</code>, <code>ADD</code>, <code>MUL</code>) corresponden a cada operación.</p><div class="io"><span><b>entra:</b> código optimizado</span><span><b>sale:</b> programa objeto</span></div></div>
+    </div>
+    <div class="callout">«El analizador léxico trabaja para el sintáctico»: el sintáctico no lee el archivo. Cada vez que necesita un componente, llama al léxico, que le entrega el siguiente token. Así el léxico funciona como una subrutina del sintáctico.</div>
+  </article>
+
+  <article class="block" id="transv">
+    <span class="eyebrow">Tema 2</span>
+    <h2>Dos componentes que acompañan todas las fases</h2>
+    <div class="two">
+      <div class="prose">
+        <h3>Tabla de símbolos</h3>
+        <p>Estructura de datos (una tabla en memoria, una lista doblemente enlazada o una tabla hash) que guarda la información de cada identificador: nombre, tipo, dirección en memoria, ámbito. Permite consultar esos datos sin volver a recorrer el programa fuente. Las operaciones básicas son <b>insertar</b> y <b>buscar</b>.</p>
+        <div class="scroll"><table class="symt"><thead><tr><th>Entrada</th><th>Lexema</th><th>Tipo</th><th>Dirección</th></tr></thead><tbody><tr><td>id1</td><td>posicion</td><td>real</td><td>0</td></tr><tr><td>id2</td><td>inicial</td><td>real</td><td>4</td></tr><tr><td>id3</td><td>velocidad</td><td>real</td><td>8</td></tr></tbody></table></div>
+      </div>
+      <div class="prose">
+        <h3>Detección e informe de errores</h3>
+        <p>En cada fase pueden aparecer errores. Un buen compilador <b>informa</b> el error con su ubicación, intenta <b>recuperarse</b> y continúa para detectar el mayor número posible de errores en una sola compilación. Un compilador que se detiene en el primer error es poco útil.</p>
+        <ul class="notes">
+          <li><b>Léxico:</b> <code>precio # 2</code>, el símbolo # no existe en el lenguaje.</li>
+          <li><b>Sintáctico:</b> <code>(base * altura / 2</code>, falta un paréntesis.</li>
+          <li><b>Semántico:</b> <code>int edad = "veinte";</code>, tipos incompatibles.</li>
+        </ul>
+      </div>
+    </div>
+  </article>
+
+  <article class="block" id="ejemplo">
+    <span class="eyebrow">Tema 3</span>
+    <h2>Ejemplos trazados del módulo</h2>
+    <div class="prose"><p><b>Ejemplo 1 (Pascal):</b> <code>suma := ultimo + penultimo</code>. El léxico entrega 5 tokens: identificador <i>suma</i>, asignación <code>:=</code>, identificador <i>ultimo</i>, operador <code>+</code>, identificador <i>penultimo</i>. El sintáctico usa estas reglas:</p></div>
+    <pre class="code">1. &lt;asignación&gt; → identificador := &lt;expresión&gt;
+2. &lt;expresión&gt;  → identificador
+3. &lt;expresión&gt;  → &lt;expresión&gt; + &lt;expresión&gt;</pre>
+    <div class="trace">
+      <div><span class="eyebrow">Código intermedio</span><pre class="code">t1  = id2 + id3
+id1 = t1</pre></div>
+      <div><span class="eyebrow">Optimizado</span><pre class="code">id1 = id2 + id3</pre></div>
+      <div><span class="eyebrow">Ensamblador</span><pre class="code">MOV id2, R1   ; R1 ← ultimo
+ADD id3, R1   ; R1 ← R1 + penultimo
+MOV R1, id1   ; suma ← R1</pre></div>
+    </div>
+    <div class="callout warn">El módulo muestra la optimización como <code>Id1=Temp1</code>. Lo que el optimizador hace en realidad es eliminar la temporal: el resultado de la suma se asigna directamente a <code>id1</code>.</div>
+
+    <div class="prose"><p><b>Ejemplo 2 (C):</b> <code>posicion = inicial + velocidad * 60</code>. Suponemos que las tres variables son reales y que 60 es entero. Como <code>*</code> tiene mayor precedencia que <code>+</code>, la multiplicación queda más abajo en el árbol y se calcula primero.</p></div>
+    <div class="diagram" id="exTree"></div>
+    <div class="trace">
+      <div><span class="eyebrow">Código intermedio</span><pre class="code">t1 = inttoreal(60)
+t2 = id3 * t1
+t3 = id2 + t2
+id1 = t3</pre></div>
+      <div><span class="eyebrow">Optimizado</span><pre class="code">t1  = id3 * 60.0
+id1 = id2 + t1</pre></div>
+      <div><span class="eyebrow">Ensamblador</span><pre class="code">MOV id3, R1    ; R1 ← velocidad
+MUL #60.0, R1  ; R1 ← R1 * 60.0
+MOV id2, R2    ; R2 ← inicial
+ADD R1, R2     ; R2 ← R2 + R1
+MOV R2, id1    ; posicion ← R2</pre></div>
+    </div>
+    <div class="callout">En el módulo, el léxico describe <code>*</code> como «operador de suma»: es el operador de <b>multiplicación</b>. La conversión <code>inttoreal(60)</code> la agrega el análisis semántico, y el optimizador la resuelve en tiempo de compilación escribiendo directamente <code>60.0</code>. Puedes reproducir este ejemplo, paso a paso, en el simulador de la pestaña Práctica.</div>
+  </article>
+
+  <article class="block" id="glosario">
+    <span class="eyebrow">Repaso</span>
+    <h2>Glosario de la sesión</h2>
+    <dl class="gloss">
+      <div><dt>Token</dt><dd>Componente léxico con sentido para el lenguaje: identificador, número, operador, palabra clave, signo.</dd></div>
+      <div><dt>Lexema</dt><dd>La secuencia concreta de caracteres que forma un token, por ejemplo <code>velocidad</code>.</dd></div>
+      <div><dt>Gramática</dt><dd>Conjunto de reglas (producciones) que definen la estructura válida del lenguaje.</dd></div>
+      <div><dt>Árbol sintáctico</dt><dd>Representación jerárquica de una instrucción según la gramática.</dd></div>
+      <div><dt>Código de tres direcciones</dt><dd>Código intermedio donde cada instrucción tiene a lo sumo un operador y tres operandos.</dd></div>
+      <div><dt>Registro</dt><dd>Pequeña memoria interna del procesador donde se hacen las operaciones (R1, R2, EAX…).</dd></div>
+      <div><dt>Programa objeto</dt><dd>Resultado final de la compilación: código máquina o ensamblador.</dd></div>
+      <div><dt>Intérprete</dt><dd>Programa que ejecuta directamente las instrucciones del fuente, sin producir un programa objeto completo.</dd></div>
+    </dl>
+  </article>
+</section>
+
+<!-- ================= PRÁCTICA ================= -->
+<section class="panel" id="practica" role="tabpanel" aria-labelledby="t-practica" hidden>
+
+  <div class="lab" id="diag">
+    <div class="lab-head"><div><span class="eyebrow">Activación · diagnóstica, sin nota</span><h2>Prueba inicial del módulo</h2></div><span class="score" id="diagScore"></span></div>
+    <p class="muted">Las preguntas y las opciones salen en orden aleatorio. Responde las cinco y pulsa «Revisar» para ver la retroalimentación.</p>
+    <div class="qlist" id="diagList"></div>
+    <div class="row"><button class="btn" id="diagCheck" type="button">Revisar</button><button class="btn ghost" id="diagNew" type="button">Barajar de nuevo</button></div>
+  </div>
+
+  <div class="lab" id="sim">
+    <div class="lab-head"><div><span class="eyebrow">Exploración libre · sin nota</span><h2>Simulador de fases</h2></div></div>
+    <p class="muted">Escribe una asignación con <code>+ - * / ^</code> y paréntesis, o elige un ejercicio del módulo. Avanza fase por fase y explica a tu pareja qué cambió antes de pasar a la siguiente. Suponemos que todas las variables están declaradas como <b>real</b>. El simulador no está disponible mientras presentas una actividad calificada.</p>
+    <div class="chips" id="presets"></div>
+    <div class="row">
+      <label for="src" class="eyebrow" style="width:100%">Instrucción fuente</label>
+      <input type="text" id="src" value="posicion = inicial + velocidad * 60" spellcheck="false" style="font-family:var(--f-mono);flex:1 1 280px">
+      <button class="btn" id="compile">Compilar</button>
+    </div>
+    <div class="steps" id="steps"></div>
+    <div class="stage" id="stage"></div>
+    <div class="row"><button class="btn ghost" id="prevStep">← Fase anterior</button><button class="btn" id="nextStep">Siguiente fase →</button></div>
+  </div>
+
+  <div class="gstart" data-comp="practica"></div>
+</section>
+
+<!-- ================= ACTIVIDADES ================= -->
+<section class="panel" id="actividades" role="tabpanel" aria-labelledby="t-actividades" hidden>
+  <div class="block">
+    <span class="eyebrow">Actividades en clase</span>
+    <h2>En el aula</h2>
+  </div>
+
+  <div class="lab">
+    <div class="lab-head"><div><span class="eyebrow">Actividad en clase 1 · 15 min · grupos de 7 · sin plataforma</span><h2>El compilador humano</h2></div></div>
+    <div class="prose">
+      <p>Cada grupo se convierte en un compilador. Cada integrante es una fase y solo puede trabajar con lo que le entrega el compañero anterior, escrito en una tarjeta. El docente entrega a cada grupo una instrucción distinta en un sobre.</p>
+    </div>
+    <div class="scroll">
+      <table class="compare">
+        <thead><tr><th>Rol</th><th>Recibe</th><th>Escribe en su tarjeta y entrega</th></tr></thead>
+        <tbody>
+          <tr><td><b>1. Léxico</b></td><td>La instrucción del sobre</td><td>La lista de tokens con su clase y la tabla de símbolos (id1, id2…)</td></tr>
+          <tr><td><b>2. Sintáctico</b></td><td>Solo la lista de tokens</td><td>El árbol sintáctico</td></tr>
+          <tr><td><b>3. Semántico</b></td><td>El árbol y la tabla de símbolos</td><td>El árbol anotado con tipos y las conversiones (inttoreal)</td></tr>
+          <tr><td><b>4. Código intermedio</b></td><td>El árbol anotado</td><td>El código de tres direcciones con temporales</td></tr>
+          <tr><td><b>5. Optimizador</b></td><td>El código intermedio</td><td>El código optimizado y qué cambió</td></tr>
+          <tr><td><b>6. Generador</b></td><td>El código optimizado</td><td>El ensamblador (MOV, ADD, SUB, MUL, DIV)</td></tr>
+          <tr><td><b>7. Manejador de errores</b></td><td>Todas las tarjetas</td><td>Revisa cada paso; si encuentra un error, devuelve la tarjeta a esa fase</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="notes">
+      <li>Instrucciones sugeridas para los sobres: <code>c = a*(b-d)/f</code>, <code>w = f*d/t</code>, <code>Y = Vo*t + g*t^(2)</code>, <code>p = (m + 5) * v - k</code>, <code>s = x / (y - z) + 8</code>. Un sobre trae una instrucción con error, por ejemplo <code>s = (x + y * 3</code>: el grupo debe identificar qué fase lo detecta y detenerse ahí.</li>
+      <li>Al terminar, cada grupo verifica su resultado en el simulador de la pestaña Práctica.</li>
+      <li>Valoración (participación, la registra el docente): tarjetas completas, comunicación solo por tarjetas, resultado correcto al verificar.</li>
+    </ul>
+  </div>
+
+  <div class="gstart" data-comp="clase"></div>
+
+  <div class="block" style="margin-top:12px">
+    <span class="eyebrow">Actividades en casa · entrega antes de la sesión 2</span>
+    <h2>En casa</h2>
+  </div>
+
+  <div class="gstart" data-comp="casa"></div>
+
+  <div class="block">
+    <span class="eyebrow">Actividad en casa 2 · trabajo escrito · lo califica el docente con la rúbrica</span>
+    <h3>Taller 1: conceptos generales y fases del compilador</h3>
+    <p class="muted" style="max-width:70ch">Basado en los «Ejercicios por temas» y la «Prueba final» del capítulo 3 del módulo. Trabajo individual, entrega en PDF.</p>
+    <div class="tasks">
+      <div class="task"><h3>Punto 1 · Definición (20 %)</h3><ul><li>Diga tres características del compilador que lo hacen importante para la formación de un ingeniero.</li><li>Describa tres características que diferencian a un compilador de un traductor y dos que lo diferencian de un intérprete.</li></ul></div>
+      <div class="task"><h3>Punto 2 · Análisis y síntesis (20 %)</h3><ul><li>Explique cómo se relacionan el análisis y la síntesis.</li><li>Explique la frase «el analizador léxico trabaja para el sintáctico» y describa el proceso con un diagrama.</li><li>¿Qué diferencias hay entre el análisis léxico, el sintáctico y el semántico? Dé un ejemplo de error para cada uno.</li></ul></div>
+      <div class="task"><h3>Punto 3 · Aplicación de las fases (45 %)</h3><p>Muestre cómo se aplican las seis fases a:</p><ul><li><code>Y = Vo*t + g*t^(2)</code></li><li><code>w = f*d/t</code></li><li><code>c = a*(b-d)/f</code></li><li><code>if (var1 &gt;= var2)</code> y <code>while (a &gt;= 1500)</code>: solo tokens y árbol sintáctico.</li></ul><p class="meta">Haga el trazado a mano y luego verifique las asignaciones con el simulador. Si su resultado difiere, explique por qué.</p></div>
+      <div class="task"><h3>Punto 4 · Reflexión y lectura (15 %)</h3><ul><li>¿Qué criterio fundamental usa el compilador al optimizar el código intermedio? Explique con uno de sus ejemplos.</li><li>Lectura (actividad 3.4 del módulo): lea la introducción a compiladores de Aho, Sethi y Ullman (cap. 1) y escriba un resumen de media página.</li></ul></div>
+    </div>
+    <div class="scroll">
+      <table class="rubric">
+        <thead><tr><th>Criterio</th><th>Excelente (4,6–5,0)</th><th>Bueno (3,6–4,5)</th><th>Básico (3,0–3,5)</th><th>Insuficiente (1,0–2,9)</th></tr></thead>
+        <tbody>
+          <tr><td>Precisión conceptual (P1, P2)</td><td>Definiciones correctas, propias y con ejemplos</td><td>Correctas con algún vacío menor</td><td>Copiadas del módulo sin elaboración</td><td>Errores conceptuales o incompletas</td></tr>
+          <tr><td>Trazado de fases (P3)</td><td>Las seis fases correctas en todas las instrucciones, con precedencia y registros bien manejados</td><td>Errores menores en una fase</td><td>Faltan fases o hay errores de precedencia</td><td>Trazado ausente o sin lógica</td></tr>
+          <tr><td>Verificación (P3)</td><td>Compara con el simulador y explica las diferencias</td><td>Compara sin explicar</td><td>Verificación parcial</td><td>No verifica</td></tr>
+          <tr><td>Reflexión y lectura (P4)</td><td>Argumentada, con fuente citada en APA</td><td>Argumentada sin cita</td><td>Superficial</td><td>Ausente</td></tr>
+          <tr><td>Presentación</td><td>Ordenada, legible, diagramas claros</td><td>Ordenada con detalles</td><td>Desordenada pero legible</td><td>Ilegible o fuera de plazo</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ================= EVALUACIÓN ================= -->
+<section class="panel" id="evaluacion" role="tabpanel" aria-labelledby="t-evaluacion" hidden>
+  <div class="two">
+    <div class="block">
+      <span class="eyebrow">Reglas para todas las actividades calificadas</span>
+      <h2>Cómo se califica y cómo se protege</h2>
+      <ul class="rules">
+        <li><b>Escala de 1,0 a 5,0.</b> Nota = 1 + 4 × (aciertos ÷ preguntas). Se aprueba con 3,0.</li>
+        <li><b>Un solo intento</b> por documento en cada actividad. El equipo además registra cuántos intentos se han iniciado en él.</li>
+        <li><b>Preguntas aleatorias:</b> cada estudiante recibe una selección y un orden distintos, con las opciones barajadas. En las actividades de trazado cada estudiante recibe su propia instrucción.</li>
+        <li>Las actividades del aula exigen la <b>clave del día</b> que el docente dicta en clase.</li>
+        <li>Pantalla completa que oculta el material, con marca de agua con tu nombre y documento.</li>
+        <li>Una pregunta a la vez; no se puede volver atrás. El reloj sigue corriendo aunque recargues.</li>
+        <li>Cada salida (cambiar de pestaña, de aplicación o de ventana, recargar o salir de pantalla completa) queda registrada. A la <b>3.ª salida</b> la actividad se entrega sola.</li>
+        <li>Copiar, pegar, seleccionar, clic derecho, imprimir y atajos de herramientas de desarrollo están bloqueados; los intentos y las capturas de pantalla quedan como incidentes.</li>
+        <li>Al terminar ves tu nota, el número de aciertos y la retroalimentación de cada pregunta, y envías el resultado por WhatsApp al <span class="mono">313 373 5510</span>. El mensaje lleva un código de verificación que detecta cualquier modificación.</li>
+      </ul>
+    </div>
+    <div class="gstart" data-comp="eval"></div>
+  </div>
+
+  <div class="lab" id="summary">
+    <div class="lab-head"><div><span class="eyebrow">Consolidado</span><h2>Mis calificaciones de la sesión 1</h2></div></div>
+    <div id="sumBody"></div>
+  </div>
+
+  <details class="teacher" id="teacher">
+    <summary>Zona docente</summary>
+    <div id="tLock" class="form" style="max-width:420px">
+      <label for="tPin">PIN docente<input type="password" id="tPin" autocomplete="off"></label>
+      <div class="row"><button class="btn" id="tPinBtn" type="button">Desbloquear</button></div>
+      <p class="fb badc" id="tPinErr" role="alert"></p>
+    </div>
+    <div id="tTools" hidden style="display:grid;gap:20px">
+      <div class="okbox"><span class="eyebrow">Clave del día · válida solo hoy</span><div class="grade" id="tKey" style="font-size:2.6rem;margin-top:6px"></div><p class="muted" style="font-size:.88rem">Díctala al iniciar la práctica, la actividad en clase y la evaluación. La actividad en casa no la necesita.</p></div>
+      <div class="form">
+        <h3>Verificar mensajes</h3>
+        <p class="muted">Pega uno o varios mensajes recibidos por WhatsApp. La página recalcula cada código y te dice si es auténtico o fue alterado.</p>
+        <textarea id="verifyIn" spellcheck="false"></textarea>
+        <div class="row"><button class="btn" id="verifyBtn" type="button">Verificar</button></div>
+        <div id="verifyOut" aria-live="polite"></div>
+      </div>
+      <div class="form">
+        <h3>Habilitar un nuevo intento en este equipo</h3>
+        <p class="muted">Úsalo solo ante una falla técnica comprobada. Borra el intento de ese documento en esta actividad.</p>
+        <div class="row"><input type="text" id="tDoc" placeholder="Documento" style="flex:1 1 160px"><select id="tComp" style="flex:1 1 200px"></select><button class="btn ghost" id="tReset" type="button">Habilitar</button></div>
+        <div class="row"><button class="btn ghost" id="tIdReset" type="button">Liberar el registro del estudiante en este equipo</button></div>
+        <p class="fb" id="tResetFb"></p>
+      </div>
+    </div>
+  </details>
+</section>
+
+</div></main>
+
+<div id="exam" hidden></div>
+
+<script>
+/* ---------- Pestañas ---------- */
+const TABS=["ruta","teoria","practica","actividades","evaluacion"];
+function showTab(id,target){
+  if(!TABS.includes(id))id="ruta";
+  TABS.forEach(t=>{document.getElementById(t).hidden=t!==id;document.getElementById("t-"+t).setAttribute("aria-selected",t===id)});
+  try{localStorage.setItem("c1s1_tab",id)}catch(e){}
+  if(target){const el=document.getElementById(target);if(el)setTimeout(()=>el.scrollIntoView({behavior:"smooth",block:"start"}),30)}
+  else window.scrollTo({top:0});
+}
+TABS.forEach(t=>document.getElementById("t-"+t).addEventListener("click",()=>showTab(t)));
+document.querySelectorAll("[data-go]").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();showTab(a.dataset.go,a.dataset.target)}));
+document.querySelectorAll(".toc a").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();document.getElementById(a.dataset.target).scrollIntoView({behavior:"smooth"})}));
+(function(){let h=(location.hash||"").slice(1),s=null;try{s=localStorage.getItem("c1s1_tab")}catch(e){}showTab(TABS.includes(h)?h:(s||"ruta"))})();
+
+/* ---------- Diagrama de fases ---------- */
+(function(){
+  const g=document.getElementById("phaseBoxes");const ns="http://www.w3.org/2000/svg";
+  const items=[["Programa fuente",""],["Analizador léxico","a"],["Analizador sintáctico","a"],["Analizador semántico","a"],["Generador de código intermedio","s"],["Optimizador de código","s"],["Generador de código","s"],["Programa objeto",""]];
+  const x=180,w=280,h=36,gap=20;let html="";
+  items.forEach((it,i)=>{const y=16+i*(h+gap)-(i>=4?0:0);const yy=i<4?16+i*(h+gap):16+i*(h+gap)+2;
+    html+=`<rect class="box ${it[1]}" x="${x}" y="${yy}" width="${w}" height="${h}" rx="8"/><text class="lbl" x="${x+w/2}" y="${yy+23}" text-anchor="middle">${it[0]}</text>`;
+    if(i<items.length-1)html+=`<path class="arr" d="M${x+w/2},${yy+h} V${yy+h+gap-2}" marker-end="url(#ah)"/>`;
+    if(i>0&&i<7){html+=`<path class="link" d="M140,235 L${x},${yy+h/2}"/><path class="link" d="M500,235 L${x+w},${yy+h/2}"/>`}
+  });
+  g.innerHTML=html;
+  const svg=g.ownerSVGElement;svg.setAttribute("viewBox","0 0 640 "+(16+8*(h+gap)));
+  // posiciones de los textos de análisis/síntesis
+})();
+
+/* ---------- Mini compilador ---------- */
+const OPN={"+":"ADD","-":"SUB","*":"MUL","/":"DIV","^":"POW"};
+const OPNAME={"+":"suma","-":"resta","*":"multiplicación","/":"división","^":"potencia"};
+function lex(src){
+  const toks=[],sym=[];let i=0;
+  const L=/[A-Za-zÁÉÍÓÚáéíóúÑñ_]/,LD=/[A-Za-z0-9ÁÉÍÓÚáéíóúÑñ_]/;
+  while(i<src.length){
+    const c=src[i];
+    if(/\s/.test(c)){i++;continue}
+    if(L.test(c)){let j=i;while(j<src.length&&LD.test(src[j]))j++;const lx=src.slice(i,j);let k=sym.findIndex(s=>s.name===lx);if(k<0){sym.push({name:lx,type:"real"});k=sym.length-1}toks.push({t:"id",v:lx,ref:"id"+(k+1),cls:"identificador"});i=j;continue}
+    if(/[0-9]/.test(c)){let j=i;while(j<src.length&&/[0-9]/.test(src[j]))j++;let real=false;
+      if(src[j]==="."){real=true;j++;if(!/[0-9]/.test(src[j]||""))throw{phase:0,msg:`Número mal formado cerca de la posición ${j}: después del punto debe ir al menos un dígito.`};while(j<src.length&&/[0-9]/.test(src[j]))j++;if(src[j]===".")throw{phase:0,msg:`Número mal formado «${src.slice(i,j+1)}…»: tiene dos puntos decimales.`}}
+      if(L.test(src[j]||""))throw{phase:0,msg:`«${src.slice(i,j+1)}…» no es un token válido: un identificador no puede empezar por dígito.`};
+      toks.push({t:"num",v:src.slice(i,j),real,cls:real?"constante real":"constante entera"});i=j;continue}
+    if(c===":"&&src[i+1]==="="){toks.push({t:"asig",v:":=",cls:"asignación"});i+=2;continue}
+    if(c==="="){toks.push({t:"asig",v:"=",cls:"asignación"});i++;continue}
+    if("+-*/^".includes(c)){toks.push({t:"op",v:c,cls:"operador de "+OPNAME[c]});i++;continue}
+    if(c==="("){toks.push({t:"lp",v:c,cls:"paréntesis abre"});i++;continue}
+    if(c===")"){toks.push({t:"rp",v:c,cls:"paréntesis cierra"});i++;continue}
+    throw{phase:0,msg:`Carácter no reconocido «${c}» en la posición ${i+1}. No pertenece al alfabeto del lenguaje.`};
+  }
+  return{toks,sym};
+}
+function parse(toks){
+  let p=0;const peek=()=>toks[p],eat=()=>toks[p++];
+  const desc=t=>t?`«${t.v}»`:"el fin de la línea";
+  function base(){const t=peek();
+    if(!t)throw{phase:1,msg:"Se esperaba un identificador, un número o «(» y la línea terminó."};
+    if(t.t==="id"){eat();return{k:"id",name:t.v,ref:t.ref}}
+    if(t.t==="num"){eat();return{k:"num",v:t.v,real:t.real}}
+    if(t.t==="lp"){eat();const e=expr();if(!peek()||peek().t!=="rp")throw{phase:1,msg:`Falta «)». Se encontró ${desc(peek())}.`};eat();return e}
+    throw{phase:1,msg:`Se esperaba un identificador, un número o «(» y llegó ${desc(t)}.`}}
+  function factor(){const b=base();if(peek()&&peek().v==="^"){eat();return{k:"bin",op:"^",l:b,r:factor()}}return b}
+  function term(){let n=factor();while(peek()&&(peek().v==="*"||peek().v==="/")){const o=eat().v;n={k:"bin",op:o,l:n,r:factor()}}return n}
+  function expr(){let n=term();while(peek()&&(peek().v==="+"||peek().v==="-")){const o=eat().v;n={k:"bin",op:o,l:n,r:term()}}return n}
+  const t0=peek();
+  if(!t0||t0.t!=="id")throw{phase:1,msg:`Una asignación debe empezar por un identificador y empieza por ${desc(t0)}.`};
+  eat();const a=peek();
+  if(!a||a.t!=="asig")throw{phase:1,msg:`Después de «${t0.v}» se esperaba el símbolo de asignación y llegó ${desc(a)}.`};
+  eat();const e=expr();
+  if(peek())throw{phase:1,msg:`Sobra ${desc(peek())}: la expresión ya estaba completa.`};
+  return{k:"asg",op:a.v,id:{k:"id",name:t0.v,ref:t0.ref},e};
+}
+function semantic(ast){
+  const notes=[];
+  function walk(n){if(n.k==="num"){if(!n.real)return{...n,conv:true};return n}
+    if(n.k==="bin"){const l=walk(n.l),r=walk(n.r);return{...n,l,r}}return n}
+  const e=walk(ast.e);
+  const convs=[];(function f(n){if(n.conv)convs.push(n.v);if(n.l){f(n.l);f(n.r)}})(e);
+  notes.push("Todas las variables de la tabla de símbolos se declararon como <b>real</b>.");
+  if(convs.length)notes.push(`Las constantes enteras ${convs.map(v=>"<code>"+v+"</code>").join(", ")} se operan con reales: el semántico inserta <code>inttoreal</code> para convertirlas.`);
+  else notes.push("No hace falta ninguna conversión de tipo.");
+  notes.push(`El resultado de la expresión es <b>real</b> y se asigna a <code>${ast.id.name}</code>, que es real: la asignación es válida.`);
+  return{ast:{...ast,e},notes};
+}
+function intermediate(ast){
+  const code=[];let n=0;const nt=()=>"t"+(++n);
+  function g(x){if(x.k==="id")return x.ref;if(x.k==="num"){if(x.conv){const t=nt();code.push({d:t,a:`inttoreal(${x.v})`,conv:x.v});return t}return x.v}
+    const a=g(x.l),b=g(x.r),t=nt();code.push({d:t,a,op:x.op,b});return t}
+  const r=g(ast.e);code.push({d:ast.id.ref,a:r});return code;
+}
+function fmt(i){return i.op?`${i.d} = ${i.a} ${i.op} ${i.b}`:`${i.d} = ${i.a}`}
+function optimize(code){
+  let c=code.map(x=>({...x}));const notes=[];const sub={};
+  c=c.filter(i=>{if(i.conv!==undefined){sub[i.d]=i.conv+".0";notes.push(`<code>${i.d} = inttoreal(${i.conv})</code> se calcula al compilar: se usa <code>${i.conv}.0</code> directamente.`);return false}return true});
+  c.forEach(i=>{if(sub[i.a])i.a=sub[i.a];if(sub[i.b])i.b=sub[i.b]});
+  const last=c[c.length-1];
+  if(c.length>1&&!last.op&&/^t\d+$/.test(last.a)){const prev=c.find(i=>i.d===last.a);if(prev&&c.indexOf(prev)===c.length-2){notes.push(`La copia <code>${last.d} = ${last.a}</code> se elimina: el resultado se escribe directamente en <code>${last.d}</code>.`);prev.d=last.d;c.pop()}}
+  const map={};let k=0;c.forEach(i=>{if(/^t\d+$/.test(i.d)){map[i.d]="t"+(++k)}});
+  c.forEach(i=>{["d","a","b"].forEach(f=>{if(map[i[f]])i[f]=map[i[f]]})});
+  if(Object.keys(map).some(o=>o!==map[o]))notes.push("Los temporales se renumeran.");
+  if(!notes.length)notes.push("No hay mejoras posibles: el código ya es mínimo.");
+  return{code:c,notes};
+}
+function codegen(code,sym){
+  const out=[];const reg={};let r=0;const nr=()=>"R"+(++r);
+  const nm=x=>{const m=/^id(\d+)$/.exec(x);return m?sym[m[1]-1].name:null};
+  const opnd=x=>reg[x]?reg[x]:(/^[0-9]/.test(x)?"#"+x:x);
+  const cm=(x)=>reg[x]?x:(nm(x)||x);
+  code.forEach(i=>{
+    if(!i.op){const R=reg[i.a]||nr();if(!reg[i.a])out.push([`MOV ${opnd(i.a)}, ${R}`,`${R} ← ${cm(i.a)}`]);out.push([`MOV ${R}, ${i.d}`,`${nm(i.d)} ← ${R}`]);return}
+    let R;if(reg[i.a]){R=reg[i.a]}else{R=nr();out.push([`MOV ${opnd(i.a)}, ${R}`,`${R} ← ${nm(i.a)||i.a}`])}
+    out.push([`${OPN[i.op]} ${opnd(i.b)}, ${R}`,`${R} ← ${R} ${i.op} ${reg[i.b]||nm(i.b)||i.b}`]);
+    if(/^t\d+$/.test(i.d))reg[i.d]=R;else out.push([`MOV ${R}, ${i.d}`,`${nm(i.d)} ← ${R}`]);
+  });
+  return out;
+}
+/* árbol SVG */
+function toTree(n,sem){
+  if(n.k==="asg")return{l:n.op,c:"op",ch:[toTree(n.id,sem),toTree(n.e,sem)]};
+  if(n.k==="id")return{l:n.ref,s:n.name,c:"lf"};
+  if(n.k==="num"){const leaf={l:n.v,s:n.real?"real":"entero",c:"lf"};return sem&&n.conv?{l:"inttoreal",c:"cv",ch:[leaf]}:leaf}
+  return{l:n.op,c:"op",ch:[toTree(n.l,sem),toTree(n.r,sem)]};
+}
+function treeSVG(root){
+  let leaf=0;const nodes=[],edges=[];let maxd=0;
+  (function lay(n,d){n.d=d;maxd=Math.max(maxd,d);if(!n.ch){n.x=leaf++;}else{n.ch.forEach(c=>lay(c,d+1));n.x=(n.ch[0].x+n.ch[n.ch.length-1].x)/2}nodes.push(n);if(n.ch)n.ch.forEach(c=>edges.push([n,c]))})(root,0);
+  const cw=96,rh=70,W=Math.max(leaf*cw,200),H=(maxd+1)*rh+10,ox=cw/2;
+  const X=n=>ox+n.x*cw,Y=n=>24+n.d*rh;
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="${W}" role="img" aria-label="Árbol sintáctico">`;
+  edges.forEach(([a,b])=>s+=`<path class="edge" d="M${X(a)},${Y(a)+14} L${X(b)},${Y(b)-14}"/>`);
+  nodes.forEach(n=>{const w=Math.max(40,n.l.length*8.6+18);const hh=n.s?36:28;const y0=Y(n)-14;
+    s+=`<rect class="n-rect ${n.c}" x="${X(n)-w/2}" y="${y0}" width="${w}" height="${hh}" rx="7"/><text class="n-txt" x="${X(n)}" y="${y0+18}" text-anchor="middle">${esc(n.l)}</text>`;
+    if(n.s)s+=`<text class="n-sub" x="${X(n)}" y="${y0+31}" text-anchor="middle">${esc(n.s)}</text>`});
+  return s+"</svg>";
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+
+/* ejemplo trazado en teoría */
+(function(){const {toks,sym}=lex("posicion = inicial + velocidad * 60");const a=semantic(parse(toks));document.getElementById("exTree").innerHTML=treeSVG(toTree(a.ast,true))})();
+
+/* simulador */
+const PHASES=["Léxico","Sintáctico","Semántico","Intermedio","Optimización","Generación"];
+const PRESETS=["posicion = inicial + velocidad * 60","suma := ultimo + penultimo","Y = Vo*t + g*t^(2)","w = f*d/t","c = a*(b-d)/f","x = (a + b * 2","total = precio # 2","r = 3.14.15 * radio"];
+let SIM=null,STEP=0;
+function runSim(){
+  const src=document.getElementById("src").value;const R={src,err:null};
+  try{const L=lex(src);R.toks=L.toks;R.sym=L.sym;
+    const ast=parse(L.toks);R.ast=ast;const S=semantic(ast);R.sem=S;
+    R.ic=intermediate(S.ast);R.opt=optimize(R.ic);R.asm=codegen(R.opt.code,L.sym);
+  }catch(e){if(e&&e.phase!==undefined)R.err=e;else{R.err={phase:0,msg:"Error inesperado: "+e}}}
+  SIM=R;STEP=0;renderSim();
+}
+function renderSim(){
+  const R=SIM;const maxStep=R.err?R.err.phase:5;
+  const st=document.getElementById("steps");
+  st.innerHTML=PHASES.map((p,i)=>`<button type="button" data-i="${i}" class="${i===STEP?(R.err&&i===R.err.phase?"err":"cur"):(i<STEP?"done":"")}" ${i>maxStep?"disabled":""}>${i+1}. ${p}</button>`).join("");
+  st.querySelectorAll("button").forEach(b=>b.onclick=()=>{STEP=+b.dataset.i;renderSim()});
+  document.getElementById("prevStep").disabled=STEP===0;
+  document.getElementById("nextStep").disabled=STEP>=maxStep;
+  const S=document.getElementById("stage");let h="";
+  if(R.err&&STEP===R.err.phase){
+    h=`<div class="errbox"><b>Error ${["léxico","sintáctico","semántico"][R.err.phase]||""}:</b> ${esc(R.err.msg)}</div><p class="muted">El compilador informa el error con su ubicación. Corrige la instrucción y vuelve a compilar.</p>`;
+    if(R.err.phase===1&&R.toks)h=tokHTML(R)+h;
+  }else if(STEP===0)h=tokHTML(R)+`<div class="scroll"><table class="symt"><thead><tr><th>Entrada</th><th>Lexema</th><th>Tipo</th></tr></thead><tbody>${R.sym.map((s,i)=>`<tr><td>id${i+1}</td><td>${esc(s.name)}</td><td>${s.type}</td></tr>`).join("")}</tbody></table></div>`;
+  else if(STEP===1)h=`<h4>Árbol sintáctico</h4><p class="muted">Los operadores de mayor precedencia (<code>^</code>, luego <code>* /</code>) quedan más abajo: se calculan primero.</p><div class="diagram">${treeSVG(toTree(R.ast,false))}</div><div class="okbox">La instrucción respeta la gramática de asignación.</div>`;
+  else if(STEP===2)h=`<h4>Árbol anotado</h4><div class="diagram">${treeSVG(toTree(R.sem.ast,true))}</div><ul class="notes">${R.sem.notes.map(n=>"<li>"+n+"</li>").join("")}</ul>`;
+  else if(STEP===3)h=`<h4>Código de tres direcciones</h4><pre class="code">${R.ic.map(fmt).map(esc).join("\n")}</pre><p class="muted">Cada instrucción tiene a lo sumo un operador. Los temporales <code>t1, t2…</code> guardan resultados parciales.</p>`;
+  else if(STEP===4)h=`<h4>Código optimizado</h4><div class="trace"><div><span class="eyebrow">Antes · ${R.ic.length} instrucciones</span><pre class="code">${R.ic.map(fmt).map(esc).join("\n")}</pre></div><div><span class="eyebrow">Después · ${R.opt.code.length} instrucciones</span><pre class="code">${R.opt.code.map(fmt).map(esc).join("\n")}</pre></div></div><ul class="notes">${R.opt.notes.map(n=>"<li>"+n+"</li>").join("")}</ul>`;
+  else if(STEP===5){const w=Math.max(...R.asm.map(a=>a[0].length))+3;h=`<h4>Ensamblador (máquina de registros simplificada)</h4><pre class="code">${R.asm.map(a=>esc(a[0].padEnd(w))+"; "+esc(a[1])).join("\n")}</pre><p class="muted">Formato <code>OP fuente, destino</code>, como en el módulo. <code>#</code> marca un valor inmediato. <code>POW</code> es una instrucción didáctica: los procesadores reales llaman a una rutina de biblioteca.</p>`}
+  S.innerHTML=`<span class="eyebrow">Fase ${STEP+1} · ${STEP<3?"análisis":"síntesis"}</span>`+h;
+}
+function tokHTML(R){return `<h4>Tokens (${R.toks.length})</h4><div class="toks">${R.toks.map(t=>`<div class="tok ${t.t}"><span class="lx">${esc(t.t==="id"?t.v:t.v)}</span><span class="cl">${esc(t.t==="id"?t.ref:t.cls)}</span></div>`).join("")}</div>`}
+document.getElementById("presets").innerHTML=PRESETS.map(p=>`<button type="button" class="chip">${esc(p)}</button>`).join("");
+document.querySelectorAll("#presets .chip").forEach(b=>b.onclick=()=>{document.getElementById("src").value=b.textContent;runSim()});
+document.getElementById("compile").onclick=runSim;
+document.getElementById("src").addEventListener("keydown",e=>{if(e.key==="Enter")runSim()});
+document.getElementById("nextStep").onclick=()=>{STEP++;renderSim()};
+document.getElementById("prevStep").onclick=()=>{STEP--;renderSim()};
+runSim();
+
+/* ================= utilidades ================= */
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function rng(seed){let s=seed>>>0;return function(){s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function sh(a,r){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function fnv(s,seed){let h=seed>>>0||0x811c9dc5;for(const ch of s){h^=ch.codePointAt(0);h=Math.imul(h,0x01000193)>>>0}return h>>>0}
+function sGet(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
+function sSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function sDel(k){try{localStorage.removeItem(k)}catch(e){}}
+const coma=n=>n.toFixed(1).replace(".",",");
+
+/* ================= prueba inicial (diagnóstica) ================= */
+const DIAG=[
+ ["Un compilador tiene como objeto:",["Realizar las fases completas de análisis y síntesis a un lenguaje dado, para convertir un código que sea entendido por la máquina","Traducir las reglas de un lenguaje dado a otro","Revisar y corregir errores de escritura de un lenguaje","Ninguna de las anteriores"],"Traducir y revisar son partes del trabajo; el objeto completo es analizar y sintetizar hasta producir código que la máquina entiende."],
+ ["La diferencia entre el compilador y el traductor es:",["El compilador detecta errores de sintaxis","El compilador es de propósito más general que el traductor","El traductor es para lenguajes convencionales","Ninguna de las anteriores"],"El compilador agrega revisión léxica, sintáctica y semántica; un traductor solo convierte."],
+ ["La diferencia entre los lenguajes de alto y bajo nivel radica en que:",["El de bajo nivel usa instrucciones que se comunican directamente con los registros de la máquina","El de alto nivel maneja más palabras reservadas","El de bajo nivel solo lo usan programadores expertos","El de alto nivel fue diseñado por programadores"],"El bajo nivel trabaja con registros y memoria; el alto nivel se acerca al lenguaje de las personas."],
+ ["Diferencia entre las fases de análisis y las de síntesis:",["El análisis revisa los componentes individuales y sintácticos para pasar luego a construir el código intermedio","El análisis se ocupa de optimizar memoria y generar código","No hay análisis sin una síntesis previa","Ninguna de las anteriores"],"Primero se analiza (léxico, sintáctico, semántico); la síntesis construye y optimiza el código."],
+ ["El código producido por el compilador está en lenguaje:",["Ensamblador o de máquina, según el compilador","Fortran","Solo ensamblador","Solo de alto nivel"],"Según el compilador, la salida es ensamblador o directamente código de máquina."]
+];
+let DIAGSET=[];
+function renderDiag(){
+  DIAGSET=shuffle(DIAG).map(q=>({q:q[0],c:q[1][0],o:shuffle(q[1]),e:q[2],sel:null}));
+  const box=document.getElementById("diagList");document.getElementById("diagScore").textContent="";
+  box.innerHTML=DIAGSET.map((q,i)=>`<div class="q"><p class="stem">${i+1}. ${esc(q.q)}</p><div class="opts">${q.o.map((o,j)=>`<button type="button" class="opt" data-q="${i}" data-o="${j}"><span class="k">${"abcd"[j]})</span><span>${esc(o)}</span></button>`).join("")}</div><p class="fb" id="dfb${i}"></p></div>`).join("");
+  box.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{if(b.disabled)return;const i=+b.dataset.q;box.querySelectorAll(`.opt[data-q="${i}"]`).forEach(x=>x.classList.remove("sel"));b.classList.add("sel");DIAGSET[i].sel=+b.dataset.o});
+}
+document.getElementById("diagCheck").onclick=()=>{
+  const box=document.getElementById("diagList");if(DIAGSET.some(q=>q.sel===null)){document.getElementById("diagScore").textContent="Responde las 5";return}
+  let ok=0;DIAGSET.forEach((q,i)=>{const good=q.o[q.sel]===q.c;if(good)ok++;box.querySelectorAll(`.opt[data-q="${i}"]`).forEach((x,j)=>{x.disabled=true;if(j===q.sel)x.classList.add(good?"right":"wrong")});const f=document.getElementById("dfb"+i);f.className="fb "+(good?"good":"badc");f.textContent=(good?"Correcto. ":"Incorrecto. ")+q.e});
+  document.getElementById("diagScore").textContent=`${ok}/5 aciertos`};
+document.getElementById("diagNew").onclick=renderDiag;
+renderDiag();
+
+/* ================= motor de actividades calificadas ================= */
+const VERSION="COMP-S1-v2",SALT="uRm-c0mp1-s1#2026",WA="573133735510",PIN_H=3747870093,MAXEXIT=3;
+const BANK_ENC="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",KEY="cmpS1k";
+const BANK=(function(){const b=atob(BANK_ENC);const u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i)^KEY.charCodeAt(i%KEY.length);return JSON.parse(new TextDecoder().decode(u))})();
+const COMPS={
+  practica:{name:"Práctica calificada",short:"PRÁCTICA",where:"En clase · individual",n:10,min:15,key:true,weight:20,desc:"10 preguntas aleatorias: qué fase detecta cada error, cómo se encadenan las fases y qué hace cada una."},
+  clase:{name:"Actividad en clase 2 · Traza tu instrucción",short:"ACTIVIDAD EN CLASE",where:"En clase · individual",n:10,min:20,key:true,weight:20,desc:"Recibes una instrucción única, generada solo para ti. La trazas en papel por las seis fases y respondes 10 preguntas sobre tu trazado."},
+  casa:{name:"Actividad en casa 1 · Reto en línea",short:"ACTIVIDAD EN CASA",where:"En casa · individual · antes de la sesión 2",n:10,min:45,key:false,weight:20,desc:"Otra instrucción única para ti, con preguntas de código optimizado y ensamblador, más 4 casos aplicados."},
+  eval:{name:"Evaluación de la sesión",short:"EVALUACIÓN",where:"En clase · individual",n:12,min:15,key:true,weight:40,desc:"12 preguntas tomadas al azar de un banco de 24, con las opciones barajadas."}
+};
+const ORDERCOMP=["practica","clase","casa","eval"];
+
+function bankItem(it,r,pref){const c=it[2][0];let o=it[2].length>4?[c,...sh(it[2].slice(1),r).slice(0,3)]:it[2].slice();return{id:it[0],q:it[1],o:sh(o,r),h:fnv(it[0]+"|"+c+SALT),exp:it[3]}}
+function mk(id,q,correct,others,exp,r){const set=[String(correct)];for(const x of others){const s=String(x);if(!set.includes(s))set.push(s);if(set.length===4)break}
+  let k=1;while(set.length<4){const f=String(+correct+(k%2?k+2:-(k+2)));if(+f>0&&!set.includes(f))set.push(f);k++;if(k>20)break}
+  return{id,q,o:sh(set,r),h:fnv(id+"|"+set[0]+SALT),exp}}
+const nums=(c,r)=>sh([c+1,c-1,c+2,c-2,c+3].filter(x=>x>0),r);
+
+const NAMES=["base","altura","tasa","total","precio","peso","masa","vel","tiempo","dist","fuerza","area","costo","saldo","nota","x","y","z","k","m","renta","carga","flujo","temp"];
+const TPL_C=["A = B + C * N","A = (B - C) * N","A = B * C + D / N","A = (B + N) * C - D","A = B / (C - D) + N","A = B - C * D + N","A = B * (C + D * N)","A = (B - C) / N + D"];
+const TPL_H=["A = (B + C) / (D - N)","A = B * C ^ N - D","A = (B - N) * (C + D)","A = B + C * D ^ N","A = B / C - D * N","A = (B + C * N) / D"];
+function genInstr(r,tpl){const t=tpl[Math.floor(r()*tpl.length)];const ns=sh(NAMES,r);const n=2+Math.floor(r()*97);return t.replace(/[ABCD]/g,m=>ns["ABCD".indexOf(m)]).replace("N",String(n))}
+function analyze(src){const L=lex(src);const ast=parse(L.toks);const S=semantic(ast);const ic=intermediate(S.ast);const opt=optimize(ic);const asm=codegen(opt.code,L.sym);return{src,toks:L.toks,sym:L.sym,ast,ic,opt,asm}}
+const symLine=A=>A.sym.map((s,i)=>`id${i+1} = ${s.name}`).join(" · ");
+const regs=A=>new Set(A.asm.flatMap(a=>a[0].match(/R\d+/g)||[])).size;
+const CLS=["identificador","constante entera","constante real","asignación","paréntesis abre","paréntesis cierra","operador de suma","operador de resta","operador de multiplicación","operador de división","operador de potencia"];
+
+function buildItems(comp,seed){
+  const r=rng(seed);let items=[],ctx=null;
+  if(comp==="eval"){items=sh(BANK.eval,r).slice(0,12).map(it=>bankItem(it,r))}
+  if(comp==="practica"){
+    items=items.concat(sh(BANK.err,r).slice(0,4).map(it=>bankItem(it,r)));
+    const ORD=["Programa fuente","Análisis léxico","Análisis sintáctico","Análisis semántico","Generación de código intermedio","Optimización de código","Generación de código","Programa objeto"];
+    sh([0,1,2,3,4,5],r).slice(0,3).forEach(i=>{const x=ORD[i],c=ORD[i+1];items.push(mk("N"+(i+1),`En el compilador, ¿qué viene inmediatamente después de «${x}»?`,c,sh(ORD.filter(p=>p!==c&&p!==x),r),`El orden es: ${ORD.join(" → ")}.`,r))});
+    items=items.concat(sh(BANK.who,r).slice(0,3).map(it=>bankItem(it,r)));
+    items=sh(items,r);
+  }
+  if(comp==="clase"||comp==="casa"){
+    const A=analyze(genInstr(r,comp==="clase"?TPL_C:TPL_H));ctx={src:A.src,sym:symLine(A)};
+    const root=A.ast.e,rootName=OPNAME[root.op];
+    const opsN=["suma","resta","multiplicación","división","potencia"];
+    const ar=A.ic.filter(i=>i.op);const firstAr=ar[0];
+    if(comp==="clase"){
+      items.push(mk("T1","¿Cuántos tokens produce el analizador léxico para tu instrucción?",A.toks.length,nums(A.toks.length,r),`Tu instrucción tiene ${A.toks.length} tokens: ${A.toks.map(t=>t.v).join("  ")}.`,r));
+      const pick=[A.toks.find(t=>t.t==="num"),sh(A.toks.filter(t=>t.t==="op"),r)[0],sh(A.toks.filter(t=>t.t==="id"),r)[0]];
+      pick.forEach((t,k)=>{const others=sh(CLS.filter(c=>c!==t.cls),r);if(t.t==="op")others.sort((a,b)=>(b.startsWith("operador")?1:0)-(a.startsWith("operador")?1:0));items.push(mk("T"+(2+k),`En tu instrucción, ¿qué clase de token es «${t.v}»?`,t.cls,others,`«${t.v}» es ${t.cls}.`,r))});
+      items.push(mk("T5","¿Qué operación queda en la raíz del árbol de la expresión (es decir, se ejecuta de última)?",rootName,sh(opsN.filter(o=>o!==rootName),r),`Por precedencia${A.src.includes("(")?" y paréntesis":""}, la ${rootName} queda en la raíz y se calcula al final.`,r));
+      const fC=fmt(firstAr);const naive=(()=>{const k=A.toks.findIndex((t,i)=>i>1&&t.t==="op");const a=A.toks[k-1],b=A.toks[k+1];return a&&b&&a.t!=="rp"&&b.t!=="lp"?`t1 = ${a.ref||a.v} ${A.toks[k].v} ${b.ref||b.v}`:null})();
+      const lastAr=fmt({...ar[ar.length-1],d:firstAr.d});const sw={...firstAr,a:firstAr.b,b:firstAr.a};
+      items.push(mk("T6","¿Cuál es la primera operación aritmética del código intermedio (sin contar inttoreal)?",fC,[naive,lastAr,fmt(sw),`${firstAr.d} = ${A.sym.length>1?"id2":"id1"} + id1`].filter(Boolean),`El código intermedio empieza por la operación más profunda del árbol: ${fC}.`,r));
+      items.push(mk("T7","¿Cuántas instrucciones tiene el código intermedio sin optimizar (incluida la asignación final)?",A.ic.length,nums(A.ic.length,r),`Código intermedio: ${A.ic.map(fmt).join(" ; ")}.`,r));
+      items.push(mk("T8","¿Cuántas instrucciones quedan después de optimizar?",A.opt.code.length,nums(A.opt.code.length,r),`Optimizado: ${A.opt.code.map(fmt).join(" ; ")}.`,r));
+      const last=A.asm[A.asm.length-1][0];const R=(last.match(/R\d+/)||["R1"])[0];
+      items.push(mk("T9","¿Cuál es la última instrucción del ensamblador generado?",last,[`MOV id1, ${R}`,`ADD ${R}, id1`,`MOV ${R}, id2`,`MOV id2, ${R}`],`El resultado está en ${R} y se guarda en id1: ${last}.`,r));
+      items=items.concat(sh(BANK.vf,r).slice(0,1).map(it=>bankItem(it,r)));
+    }else{
+      const optS=A.opt.code.map(fmt).join(" ; ");
+      const icConv=A.ic.filter(i=>i.conv===undefined).map(i=>{const x={...i};A.ic.forEach(c=>{if(c.conv!==undefined){if(x.a===c.d)x.a=c.conv+".0";if(x.b===c.d)x.b=c.conv+".0"}});return fmt(x)}).join(" ; ");
+      const wrongOrd=A.opt.code.map((i,k)=>k===0&&i.op&&"-/^".includes(i.op)?fmt({...i,a:i.b,b:i.a}):fmt(i)).join(" ; ");
+      const wrongOp=A.opt.code.map((i,k)=>k===A.opt.code.length-1&&i.op?fmt({...i,op:i.op==="+"?"-":"+"}):fmt(i)).join(" ; ");
+      items.push(mk("H1","¿Cuál es el código intermedio optimizado de tu instrucción?",optS,[A.ic.map(fmt).join(" ; "),icConv,wrongOrd,wrongOp],`Optimizado: ${optS}. Se resuelve inttoreal al compilar y se elimina la copia final.`,r));
+      const ir=sh(ar,r)[0];const irS=fmt(ir);
+      items.push(mk("H2","¿Cuál de estas instrucciones aparece en el código intermedio SIN optimizar?",irS,[fmt({...ir,op:ir.op==="*"?"/":"*"}),fmt({...ir,a:ir.b,b:ir.a}),fmt({...ir,d:"id1"}),`t9 = ${ir.a} ${ir.op} id1`],`Código intermedio: ${A.ic.map(fmt).join(" ; ")}.`,r));
+      items.push(mk("H3","¿Qué operación queda en la raíz del árbol de la expresión?",rootName,sh(opsN.filter(o=>o!==rootName),r),`La ${rootName} es la última en evaluarse por precedencia, asociatividad y paréntesis.`,r));
+      const n=(A.toks.find(t=>t.t==="num")||{v:"2"}).v;
+      items.push(mk("H4",`¿Qué hace el análisis semántico con la constante ${n}?`,`Inserta inttoreal(${n}) porque es entera y se opera con reales`,[`La deja como entera porque no hace falta convertir`,`Convierte la variable id1 a entero`,`Marca un error de tipos y detiene la compilación`],`Todas las variables son reales; ${n} es entera, así que el semántico agrega inttoreal(${n}).`,r));
+      items.push(mk("H5","¿Cuántas instrucciones tiene el ensamblador generado?",A.asm.length,nums(A.asm.length,r),`Ensamblador: ${A.asm.map(a=>a[0]).join(" ; ")}.`,r));
+      items.push(mk("H6","¿Cuántos registros distintos usa el ensamblador generado?",regs(A),nums(regs(A),r),`Usa ${regs(A)} registro(s): ${A.asm.map(a=>a[0]).join(" ; ")}.`,r));
+      items=items.concat(sh(BANK.casa,r).slice(0,4).map(it=>bankItem(it,r)));
+    }
+  }
+  return{items,ctx};
+}
+
+/* identidad y llaves */
+const ID_K="c1s1_id",runK=c=>"c1s1_run_"+c,doneK=(c,d)=>`c1s1_done_${c}_${d}`,attK=c=>"c1s1_att_"+c;
+function todayKey(){const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
+function dayCode(){return String(fnv(todayKey()+"|clave|"+SALT)%9000+1000)}
+function verif(body){const norm=body.split("\n").map(l=>l.trim()).filter(Boolean).join("\n");const a=fnv(norm+SALT),b=fnv(SALT+norm,0x9747b28c);return(a.toString(16).padStart(8,"0").slice(0,4)+"-"+b.toString(16).padStart(8,"0").slice(0,4)).toUpperCase()}
+function activeRun(){for(const c of ORDERCOMP){const r=sGet(runK(c));if(r&&!r.finished)return r}return null}
+
+/* tarjetas de inicio */
+function renderStarts(){
+  const id=sGet(ID_K);
+  document.querySelectorAll(".gstart").forEach(el=>{
+    const c=el.dataset.comp,C=COMPS[c];const run=sGet(runK(c));const done=id&&sGet(doneK(c,id.doc));
+    let status="";
+    if(run&&!run.finished)status=`<div class="okbox">Tienes esta actividad en curso. Al continuar, la recarga cuenta como una salida.</div><div class="row"><button class="btn" type="button" data-act="resume">Continuar</button></div>`;
+    else if(done)status=`<div class="okbox"><b>Presentada.</b> Nota ${coma(done.grade)} / 5,0 · ${done.ok} de ${done.n} aciertos.</div><div class="row"><button class="btn ghost" type="button" data-act="view">Ver resultado y retroalimentación</button></div>`;
+    else status=`<div class="row"><button class="btn" type="button" data-act="start">Iniciar ${C.short.toLowerCase()}</button></div>`;
+    el.className="lab gstart";el.dataset.comp=c;
+    el.innerHTML=`<div class="lab-head"><div><span class="eyebrow">${C.where} · calificada</span><h2>${C.name}</h2></div></div><p class="muted">${C.desc}</p><div class="chips"><span class="chip">${C.n} preguntas</span><span class="chip">${C.min} minutos</span><span class="chip">1 intento</span><span class="chip">Nota 1,0–5,0</span>${C.key?'<span class="chip">Clave del día</span>':""}</div>${status}`;
+    const b=el.querySelector("[data-act]");if(b)b.onclick=()=>{if(b.dataset.act==="start")openReg(c);else if(b.dataset.act==="resume")resume(c);else showResult(sGet(runK(c)))};
+  });
+  renderSummary();
+}
+
+/* overlay */
+const exam=document.getElementById("exam");let RUN=null,ITEMS=null,tick=null,lastExit=0;
+function openOverlay(){exam.hidden=false;document.body.style.overflow="hidden";exam.scrollTop=0}
+function closeOverlay(){exam.hidden=true;exam.innerHTML="";exam.style.backgroundImage="";document.body.style.overflow="";renderStarts()}
+function openReg(c){
+  const C=COMPS[c];const id=sGet(ID_K);const act=activeRun();
+  if(act&&act.comp!==c){alertBox(`Tienes «${COMPS[act.comp].name}» en curso. Termínala antes de iniciar otra actividad.`);return}
+  openOverlay();const ro=id?"readonly":"";
+  exam.innerHTML=`<div class="exam-in"><div class="exam-bar"><div><div class="eyebrow">${C.where}</div><h2>${C.name}</h2></div></div>
+  <form class="qcard form" id="regForm2" novalidate>
+   <p class="muted">${C.n} preguntas · ${C.min} minutos · un solo intento · nota de 1,0 a 5,0. Ten a mano papel y lápiz.</p>
+   ${id?`<div class="okbox">Este equipo está registrado a nombre de <b>${esc(id.name)}</b>. Si no eres tú, pide al docente que libere el registro.</div>`:""}
+   <label for="rName">Nombre completo<input type="text" id="rName" autocomplete="name" ${ro} value="${id?esc(id.name):""}"></label>
+   <label for="rDoc">Documento de identidad<input type="text" id="rDoc" inputmode="numeric" ${ro} value="${id?esc(id.doc):""}"></label>
+   <label for="rMail">Correo institucional<input type="email" id="rMail" autocomplete="email" ${ro} value="${id?esc(id.mail):""}"></label>
+   <label for="rGroup">Grupo<input type="text" id="rGroup" ${ro} value="${id?esc(id.group):""}"></label>
+   ${C.key?'<label for="rKey">Clave del día (la dicta el docente)<input type="text" id="rKey" inputmode="numeric" autocomplete="off"></label>':""}
+   <label class="check" for="rHonest"><input type="checkbox" id="rHonest"> <span>Declaro que responderé de forma individual, sin ayuda de otras personas, apuntes digitales ni herramientas externas, y que entiendo que las salidas de la pantalla quedan registradas.</span></label>
+   <p class="fb badc" id="regErr" role="alert"></p>
+   <div class="row"><button class="btn" type="submit">Iniciar en pantalla completa</button><button class="btn ghost" type="button" id="regCancel">Cancelar</button></div>
+  </form></div>`;
+  document.getElementById("regCancel").onclick=closeOverlay;
+  document.getElementById("regForm2").onsubmit=e=>{e.preventDefault();
+    const v=k=>document.getElementById(k).value.trim();const err=document.getElementById("regErr");
+    const reg={name:v("rName").replace(/\s+/g," "),doc:v("rDoc").replace(/\D/g,""),mail:v("rMail"),group:v("rGroup")};
+    if(!reg.name||!reg.doc||!reg.mail||!reg.group){err.textContent="Completa nombre, documento, correo y grupo.";return}
+    if(reg.name.split(" ").length<2){err.textContent="Escribe nombre y apellido.";return}
+    if(!/^\S+@\S+\.\S+$/.test(reg.mail)){err.textContent="Escribe un correo válido, por ejemplo nombre@uniremington.edu.co.";return}
+    if(reg.doc.length<6){err.textContent="El documento debe tener al menos 6 dígitos.";return}
+    if(C.key&&v("rKey")!==dayCode()){err.textContent="La clave del día no es correcta. Pídela al docente.";return}
+    if(!document.getElementById("rHonest").checked){err.textContent="Debes aceptar la declaración de honestidad para iniciar.";return}
+    if(sGet(doneK(c,reg.doc))){err.textContent="Este documento ya presentó esta actividad. Solo hay un intento.";return}
+    if(!id)sSet(ID_K,reg);
+    const att=(sGet(attK(c))||[]);att.push({doc:reg.doc,at:Date.now()});sSet(attK(c),att);
+    RUN={comp:c,reg:id||reg,seed:(crypto.getRandomValues(new Uint32Array(1))[0])>>>0,ans:[],idx:0,start:Date.now(),exits:[],inc:[],finished:false,how:"",prevAtt:att.filter(a=>a.doc!==reg.doc).length,qt:[]};
+    sSet(runK(c),RUN);startRun();
+  };
+}
+function alertBox(t){openOverlay();exam.innerHTML=`<div class="exam-in"><div class="qcard"><p>${esc(t)}</p><div class="row"><button class="btn" id="okA" type="button">Entendido</button></div></div></div>`;document.getElementById("okA").onclick=closeOverlay}
+function resume(c){RUN=sGet(runK(c));if(!RUN||RUN.finished){renderStarts();return}RUN.exits.push({t:Date.now(),why:"recarga o reingreso"});sSet(runK(c),RUN);openOverlay();startRun()}
+function watermark(){try{const cv=document.createElement("canvas");cv.width=420;cv.height=220;const x=cv.getContext("2d");x.translate(210,110);x.rotate(-0.35);x.font="600 15px "+getComputedStyle(document.body).fontFamily;x.fillStyle=getComputedStyle(document.documentElement).getPropertyValue("--muted").trim()||"#888";x.globalAlpha=.13;x.textAlign="center";x.fillText(`${RUN.reg.name} · ${RUN.reg.doc}`,0,0);x.fillText(new Date(RUN.start).toLocaleString("es-CO"),0,22);exam.style.backgroundImage=`url(${cv.toDataURL()})`}catch(e){}}
+function startRun(){
+  ITEMS=buildItems(RUN.comp,RUN.seed);
+  exam.classList.add("locked");watermark();
+  try{const p=document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();if(p&&p.catch)p.catch(()=>{})}catch(e){}
+  ["copy","cut","paste","contextmenu","selectstart","dragstart","beforeprint"].forEach(ev=>document.addEventListener(ev,block,true));
+  document.addEventListener("keydown",keyBlock,true);document.addEventListener("keyup",keyUp,true);
+  document.addEventListener("visibilitychange",onVis);window.addEventListener("blur",onBlur);document.addEventListener("fullscreenchange",onFs);
+  if(RUN.exits.length>=MAXEXIT){finish("salidas");return}
+  if(left()<=0){finish("tiempo");return}
+  renderQ();clearInterval(tick);tick=setInterval(updClock,500);updClock();
+}
+function inc(why){if(!RUN||RUN.finished)return;RUN.inc.push({t:Date.now(),why});sSet(runK(RUN.comp),RUN);const w=document.getElementById("incWarn");if(w){w.hidden=false;w.textContent=`Incidentes: ${RUN.inc.length}`}}
+function block(e){if(RUN&&!RUN.finished&&!exam.hidden){e.preventDefault();if(e.type==="paste"||e.type==="copy")inc(e.type==="paste"?"intento de pegar":"intento de copiar")}}
+function keyBlock(e){if(!RUN||RUN.finished||exam.hidden)return;const k=(e.key||"").toLowerCase();
+  if(e.key==="F12"||((e.ctrlKey||e.metaKey)&&e.shiftKey&&["i","j","c"].includes(k))||((e.ctrlKey||e.metaKey)&&k==="u")){e.preventDefault();inc("atajo de herramientas de desarrollo");return}
+  if((e.ctrlKey||e.metaKey)&&["c","v","x","a","p","s","f"].includes(k)){e.preventDefault();inc("atajo bloqueado (Ctrl+"+k.toUpperCase()+")")}}
+function keyUp(e){if(RUN&&!RUN.finished&&!exam.hidden&&e.key==="PrintScreen")inc("captura de pantalla")}
+function regExit(why){if(!RUN||RUN.finished)return;const now=Date.now();if(now-lastExit<2000)return;lastExit=now;RUN.exits.push({t:now,why});sSet(runK(RUN.comp),RUN);
+  if(RUN.exits.length>=MAXEXIT)finish("salidas");else{const w=document.getElementById("exitWarn");if(w){w.textContent=`Salidas: ${RUN.exits.length}/${MAXEXIT}`;w.className="pill warn"}}}
+function onVis(){if(document.hidden)regExit("cambio de pestaña o aplicación")}
+function onBlur(){setTimeout(()=>{if(!document.hasFocus())regExit("cambio de ventana")},150)}
+function onFs(){if(!document.fullscreenElement)regExit("salió de pantalla completa")}
+function left(){return Math.max(0,COMPS[RUN.comp].min*60000-(Date.now()-RUN.start))}
+function updClock(){if(!RUN||RUN.finished)return;const l=left();const c=document.getElementById("clock");if(c){const m=Math.floor(l/60000),s=Math.floor(l%60000/1000);c.textContent=`${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;c.classList.toggle("low",l<120000)}if(l<=0)finish("tiempo")}
+function renderQ(){
+  const C=COMPS[RUN.comp],i=RUN.idx,q=ITEMS.items[i],N=ITEMS.items.length;let sel=null;const shown=Date.now();
+  exam.innerHTML=`<div class="exam-in"><div class="exam-bar"><div><div class="eyebrow">${C.short} · ${esc(RUN.reg.name)} · ${esc(RUN.reg.doc)}</div><div style="font-weight:600">Pregunta ${i+1} de ${N}</div></div><div class="row"><span class="pill warn" id="incWarn" ${RUN.inc.length?"":"hidden"}>Incidentes: ${RUN.inc.length}</span><span class="pill ${RUN.exits.length?"warn":""}" id="exitWarn">Salidas: ${RUN.exits.length}/${MAXEXIT}</span><span class="clock" id="clock"></span></div></div>
+  <div class="progress"><div style="width:${i/N*100}%"></div></div>
+  ${ITEMS.ctx?`<div class="ctx"><span class="eyebrow">Tu instrucción (todas las variables son reales)</span><code class="big">${esc(ITEMS.ctx.src)}</code><span class="mono muted" style="font-size:.82rem">${esc(ITEMS.ctx.sym)}</span></div>`:""}
+  <div class="qcard"><p class="stem">${esc(q.q)}</p><div class="opts">${q.o.map((x,j)=>`<button type="button" class="opt" data-j="${j}"><span class="k">${"abcd"[j]})</span><span class="mono-wrap">${esc(x)}</span></button>`).join("")}</div>
+  <div class="row"><button class="btn" id="ansBtn" type="button" disabled>${i<N-1?"Responder y continuar":"Responder y terminar"}</button><span class="muted" style="font-size:.85rem">No podrás volver a esta pregunta.</span></div></div></div>`;
+  exam.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{exam.querySelectorAll(".opt").forEach(x=>x.classList.remove("sel"));b.classList.add("sel");sel=+b.dataset.j;document.getElementById("ansBtn").disabled=false});
+  document.getElementById("ansBtn").onclick=()=>{if(sel===null||RUN.finished)return;RUN.ans[i]=q.o[sel];RUN.qt[i]=Math.round((Date.now()-shown)/1000);RUN.idx++;sSet(runK(RUN.comp),RUN);if(RUN.idx>=N)finish("manual");else renderQ()};
+  updClock();exam.scrollTop=0;
+}
+function dur(ms){const s=Math.round(ms/1000);return`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`}
+function stamp(t){const d=new Date(t);return d.toLocaleDateString("es-CO")+" "+d.toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}
+const HOW={manual:"entregada por el estudiante",tiempo:"entregada al agotarse el tiempo",salidas:"entregada automáticamente por 3 salidas"};
+function score(run,items){let ok=0;const det=items.items.map((q,i)=>{const a=run.ans[i];const good=a!==undefined&&fnv(q.id+"|"+a+SALT)===q.h;if(good)ok++;return{q,a,good}});const n=items.items.length;return{ok,n,det,grade:Math.round((1+4*ok/n)*10)/10}}
+function finish(how){
+  if(!RUN||RUN.finished)return;const C=COMPS[RUN.comp];
+  RUN.finished=true;RUN.how=how;RUN.end=Math.min(Date.now(),RUN.start+C.min*60000);clearInterval(tick);
+  const S=score(RUN,ITEMS);const state=S.grade>=3?"APROBADO":"NO APROBADO";
+  const answered=RUN.qt.filter(x=>x!==undefined);const avg=answered.length?Math.round(answered.reduce((a,b)=>a+b,0)/answered.length):0;
+  const body=[`COMPILADORES · SESIÓN 1 · ${C.short}`,`Estudiante: ${RUN.reg.name}`,`Documento: ${RUN.reg.doc}`,`Correo: ${RUN.reg.mail}`,`Grupo: ${RUN.reg.group}`,
+    `Nota: ${coma(S.grade)} / 5,0 (escala 1–5) · ${state}`,`Aciertos: ${S.ok} de ${S.n}`,
+    ITEMS.ctx?`Instrucción asignada: ${ITEMS.ctx.src}`:null,
+    `Inicio: ${stamp(RUN.start)}`,`Fin: ${stamp(RUN.end)}`,`Duración: ${dur(RUN.end-RUN.start)} · promedio ${avg} s por pregunta`,
+    `Salidas: ${RUN.exits.length}${RUN.exits.length?" ("+RUN.exits.map(x=>x.why).join("; ")+")":""}`,
+    `Incidentes: ${RUN.inc.length}${RUN.inc.length?" ("+[...new Set(RUN.inc.map(x=>x.why))].join("; ")+")":""}`,
+    `Otros intentos iniciados en este equipo: ${RUN.prevAtt||0}`,
+    `Estado: ${HOW[how]}`,`Versión: ${VERSION}`,
+    `Detalle: ${S.det.map((d,i)=>`${i+1}.${d.q.id}:${d.a===undefined?"-":(d.good?"C":"X")}`).join(" ")}`].filter(Boolean).join("\n");
+  const code=verif(body);RUN.msg=body+"\nCódigo de verificación: "+code;RUN.code=code;
+  sSet(runK(RUN.comp),RUN);sSet(doneK(RUN.comp,RUN.reg.doc),{grade:S.grade,ok:S.ok,n:S.n,code,at:RUN.end});
+  ["copy","cut","paste","contextmenu","selectstart","dragstart","beforeprint"].forEach(ev=>document.removeEventListener(ev,block,true));
+  document.removeEventListener("keydown",keyBlock,true);document.removeEventListener("keyup",keyUp,true);
+  document.removeEventListener("visibilitychange",onVis);window.removeEventListener("blur",onBlur);document.removeEventListener("fullscreenchange",onFs);
+  try{if(document.fullscreenElement)document.exitFullscreen().catch(()=>{})}catch(e){}
+  exam.classList.remove("locked");showResult(RUN);
+}
+function showResult(run){
+  if(!run||!run.finished)return;const C=COMPS[run.comp];const items=buildItems(run.comp,run.seed);const S=score(run,items);
+  openOverlay();
+  exam.innerHTML=`<div class="exam-in result"><div class="eyebrow">${C.name} · ${HOW[run.how]}</div>
+  <div class="row" style="align-items:flex-end;gap:16px"><span class="grade">${coma(S.grade)}</span><div><div style="font-weight:600;color:${S.grade>=3?"var(--ok)":"var(--bad)"}">${S.grade>=3?"APROBADO":"NO APROBADO"} · escala 1,0–5,0</div><div class="muted">${S.ok} de ${S.n} aciertos · ${dur(run.end-run.start)} · ${run.exits.length} salidas · ${run.inc.length} incidentes</div></div></div>
+  <div class="okbox"><b>Envía tu nota:</b> manda este resultado al docente por WhatsApp al <span class="mono">313 373 5510</span>. No modifiques el texto: el código de verificación detecta cualquier cambio.</div>
+  <div class="msg" id="msgBox">${esc(run.msg)}</div>
+  <div class="row"><a class="btn" style="text-decoration:none" href="https://wa.me/${WA}?text=${encodeURIComponent(run.msg)}" target="_blank" rel="noopener">Enviar nota por WhatsApp</a><button class="btn ghost" id="copyMsg" type="button">Copiar mensaje</button><button class="btn ghost" id="closeExam" type="button">Volver a la clase</button></div>
+  <p class="fb" id="copyFb"></p>
+  ${items.ctx?`<div class="ctx"><span class="eyebrow">Tu instrucción</span><code class="big">${esc(items.ctx.src)}</code><span class="mono muted" style="font-size:.82rem">${esc(items.ctx.sym)}</span></div>`:""}
+  <h3>Retroalimentación</h3>
+  <div class="qlist">${S.det.map((d,i)=>`<div class="q fbq ${d.good?"good":"bad"}"><p class="stem">${i+1}. ${esc(d.q.q)}</p><p><span class="tagr ${d.good?"good":"bad"}">${d.good?"Correcta":(d.a===undefined?"Sin responder":"Incorrecta")}</span> <span class="muted">Tu respuesta:</span> <span class="mono-wrap">${d.a===undefined?"—":esc(d.a)}</span></p><p class="fb">${esc(d.q.exp)}</p></div>`).join("")}</div>
+  <div class="row"><button class="btn ghost" id="closeExam2" type="button">Volver a la clase</button></div></div>`;
+  document.getElementById("copyMsg").onclick=()=>copyText(run.msg,"msgBox","copyFb");
+  document.getElementById("closeExam").onclick=closeOverlay;document.getElementById("closeExam2").onclick=closeOverlay;
+}
+function copyText(t,boxId,fbId){const f=document.getElementById(fbId);const sel=()=>{const r=document.createRange();r.selectNodeContents(document.getElementById(boxId));const s=getSelection();s.removeAllRanges();s.addRange(r);f.textContent="Texto seleccionado: cópialo con Ctrl+C o mantén pulsado."};
+  try{navigator.clipboard.writeText(t).then(()=>f.textContent="Mensaje copiado. Pégalo en el chat del docente.").catch(sel)}catch(e){sel()}}
+
+/* consolidado */
+function renderSummary(){
+  const box=document.getElementById("sumBody");const id=sGet(ID_K);
+  if(!id){box.innerHTML='<p class="muted">Aún no has presentado actividades calificadas en este equipo. Aquí aparecerán tus notas de la práctica, las actividades y la evaluación.</p>';return}
+  const rows=ORDERCOMP.map(c=>({c,C:COMPS[c],d:sGet(doneK(c,id.doc))}));
+  const all=rows.every(r=>r.d);const fin=all?Math.round(rows.reduce((s,r)=>s+r.d.grade*r.C.weight,0)/100*10)/10:null;
+  box.innerHTML=`<p class="muted">${esc(id.name)} · ${esc(id.doc)} · grupo ${esc(id.group)}</p><div class="scroll"><table class="compare" style="min-width:520px"><thead><tr><th>Actividad</th><th>Peso</th><th>Aciertos</th><th>Nota</th><th>Código</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.C.name}</td><td>${r.C.weight} %</td><td>${r.d?`${r.d.ok}/${r.d.n}`:"—"}</td><td><b>${r.d?coma(r.d.grade):"Pendiente"}</b></td><td class="mono">${r.d?r.d.code:"—"}</td></tr>`).join("")}<tr><td><b>Nota de la sesión</b></td><td>100 %</td><td></td><td><b>${fin!==null?coma(fin):"Pendiente"}</b></td><td></td></tr></tbody></table></div>
+  <p class="muted" style="font-size:.88rem">El taller escrito lo califica el docente con la rúbrica y no entra en este cálculo automático.</p>
+  <div class="row"><button class="btn" type="button" id="sumSend" ${rows.some(r=>r.d)?"":"disabled"}>Enviar consolidado por WhatsApp</button></div>`;
+  const b=document.getElementById("sumSend");if(b)b.onclick=()=>{
+    const body=["COMPILADORES · SESIÓN 1 · CONSOLIDADO",`Estudiante: ${id.name}`,`Documento: ${id.doc}`,`Grupo: ${id.group}`,...rows.map(r=>`${r.C.short}: ${r.d?`${coma(r.d.grade)} (${r.d.ok}/${r.d.n}) código ${r.d.code}`:"pendiente"}`),`Nota de la sesión: ${fin!==null?coma(fin)+" / 5,0":"pendiente (faltan actividades)"}`,`Versión: ${VERSION}`].join("\n");
+    const msg=body+"\nCódigo de verificación: "+verif(body);
+    openOverlay();exam.innerHTML=`<div class="exam-in"><h2>Consolidado de notas</h2><div class="msg" id="sumBox">${esc(msg)}</div><div class="row"><a class="btn" style="text-decoration:none" href="https://wa.me/${WA}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Enviar por WhatsApp</a><button class="btn ghost" id="sumCopy" type="button">Copiar</button><button class="btn ghost" id="sumClose" type="button">Cerrar</button></div><p class="fb" id="sumFb"></p></div>`;
+    document.getElementById("sumCopy").onclick=()=>copyText(msg,"sumBox","sumFb");document.getElementById("sumClose").onclick=closeOverlay};
+}
+
+/* zona docente */
+document.getElementById("tComp").innerHTML=ORDERCOMP.map(c=>`<option value="${c}">${COMPS[c].name}</option>`).join("");
+document.getElementById("tPinBtn").onclick=()=>{const p=document.getElementById("tPin").value;if(fnv("pin|"+p+SALT)===PIN_H){document.getElementById("tLock").hidden=true;document.getElementById("tTools").hidden=false;document.getElementById("tKey").textContent=dayCode()}else document.getElementById("tPinErr").textContent="PIN incorrecto."};
+document.getElementById("verifyBtn").onclick=()=>{
+  const lines=document.getElementById("verifyIn").value.replace(/\r/g,"").replace(/\*/g,"").split("\n").map(l=>l.trim()).filter(Boolean);
+  const out=document.getElementById("verifyOut");const res=[];let cur=null;
+  lines.forEach(l=>{if(/^COMPILADORES · SESIÓN 1 ·/.test(l)){cur={lines:[l]};res.push(cur)}else if(cur){if(/^Código de verificación:/i.test(l)){cur.code=l.split(":").slice(1).join(":").trim().toUpperCase();cur=null}else cur.lines.push(l)}});
+  if(!res.length){out.innerHTML='<div class="errbox"><b>No se encontró ningún mensaje.</b> Pega el texto completo desde «COMPILADORES · SESIÓN 1» hasta el código de verificación.</div>';return}
+  out.innerHTML=`<div class="scroll"><table class="compare" style="min-width:520px"><thead><tr><th>Actividad</th><th>Estudiante</th><th>Nota</th><th>Resultado</th></tr></thead><tbody>${res.map(r=>{const ok=r.code&&verif(r.lines.join("\n"))===r.code;const g=k=>(r.lines.find(l=>l.startsWith(k))||"").slice(k.length).trim();
+    return`<tr><td>${esc(r.lines[0].split("·").pop().trim())}</td><td>${esc(g("Estudiante:"))}<br><span class="muted">${esc(g("Documento:"))}</span></td><td>${esc(g("Nota:")||g("Nota de la sesión:"))}</td><td style="color:${ok?"var(--ok)":"var(--bad)"};font-weight:600">${ok?"Auténtico":(r.code?"Alterado":"Sin código")}</td></tr>`}).join("")}</tbody></table></div>`};
+document.getElementById("tReset").onclick=()=>{const d=document.getElementById("tDoc").value.replace(/\D/g,""),c=document.getElementById("tComp").value;const f=document.getElementById("tResetFb");if(!d){f.textContent="Escribe el documento.";return}sDel(doneK(c,d));const r=sGet(runK(c));if(r&&r.reg&&r.reg.doc===d)sDel(runK(c));f.textContent=`Listo: el documento ${d} puede presentar de nuevo «${COMPS[c].name}» en este equipo.`;renderStarts()};
+document.getElementById("tIdReset").onclick=()=>{if(activeRun()){document.getElementById("tResetFb").textContent="Hay una actividad en curso; termínala antes de liberar el registro.";return}sDel(ID_K);document.getElementById("tResetFb").textContent="Registro liberado: el próximo estudiante podrá registrarse en este equipo.";renderStarts()};
+
+/* arranque: cerrar intentos vencidos */
+(function(){for(const c of ORDERCOMP){const r=sGet(runK(c));if(r&&!r.finished&&Date.now()-r.start>COMPS[c].min*60000){RUN=r;ITEMS=buildItems(c,r.seed);r.exits=r.exits||[];r.inc=r.inc||[];r.qt=r.qt||[];finish("tiempo");exam.hidden=true;document.body.style.overflow=""}}renderStarts()})();
+
+</script>
